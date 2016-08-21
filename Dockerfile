@@ -10,7 +10,6 @@ RUN mkdir -p /notebooks /usr/lib/python2.7/site-packages/cfgm_common/ /usr/lib/p
 ADD jupyter_notebook_config.py /root/.jupyter/jupyter_notebook_config.py
 ADD vnc_api /usr/lib/python2.7/site-packages/vnc_api/
 ADD cfgm_common /usr/lib/python2.7/site-packages/cfgm_common/
-ADD notebooks /notebooks/ 
 
 EXPOSE 8888
 
