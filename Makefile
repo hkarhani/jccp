@@ -1,2 +1,2 @@
 build: 
-	docker build -t hkarhani/jpyez_demo .
+	docker build -t hkarhani/jccp .
