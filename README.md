@@ -7,4 +7,4 @@ Built on top of juniper/pyez, with Alpine-SDK, PyEZ, jxmlease, SpaceEZ while add
 Usage: 
 docker run --name jccp -d -p 8888:8888 hkarhani/jccp 
 
-Then browse to http://docker-machine-ip:8888/ to access your existing Contrail Cloud Platform Setup. Enjoy!
+Then browse to http://docker-machine-ip:8888/ to simply begin consuming / testing the APIs of your existing Contrail Cloud Platform Setup. Enjoy!
