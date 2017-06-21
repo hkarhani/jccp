@@ -18,6 +18,18 @@ class ServiceUnavailableError(VncError):
     # end __str__
 # end class ServiceUnavailableError
 
+class DatabaseUnavailableError(ServiceUnavailableError):
+    def __init__(self, db_type, code=None):
+        self._db_type = db_type
+        super(DatabaseUnavailableError, self).__init__(code)
+    # end __init__
+
+    def __str__(self):
+        return 'Error accessing %s database due to: %s' \
+               %(self._db_type, self._reason_code)
+    # end __str__
+# end class DatabaseUnavailableError
+
 class TimeOutError(VncError):
     def __init__(self, code):
         self._reason_code = code
@@ -36,7 +48,7 @@ class BadRequest(Exception):
     # end __init__
 
     def __str__(self):
-        return 'HTTP Status: %s Content: %s' % (self.status_code, self.content)
+        return self.content
     # end __str__
 # end class BadRequest
 
@@ -65,14 +77,20 @@ class MaxRabbitPendingError(VncError):
 # end class MaxRabbitPendingError
 
 class ResourceExistsError(VncError):
-    def __init__(self, eexists_fq_name, eexists_id):
+    def __init__(self, eexists_fq_name, eexists_id, location=None):
         self._eexists_fq_name = eexists_fq_name
         self._eexists_id = eexists_id
+        self._eexists_location = location
     # end __init__
 
     def __str__(self):
-        return 'FQ Name: %s exists already with ID: %s' \
-            % (self._eexists_fq_name, self._eexists_id)
+        if self._eexists_location:
+            return 'FQ Name: %s exists already with ID: %s at %s' \
+                % (self._eexists_fq_name, self._eexists_id,
+                   self._eexists_location)
+        else:
+            return 'FQ Name: %s exists already with ID: %s' \
+                % (self._eexists_fq_name, self._eexists_id)
     # end __str__
 # end class ResourceExistsError
 
@@ -90,6 +108,9 @@ class PermissionDenied(VncError):
     pass
 # end class PermissionDenied
 
+class OverQuota(VncError):
+    pass
+# end class OverQuota
 
 class RefsExistError(VncError):
     pass
