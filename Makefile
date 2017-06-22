@@ -1,14 +1,27 @@
 build:
 	docker build -t twofiveone/jccp .
 
-run: stop rm
+run: stop
 	mkdir -p notebooks
-	docker run --name jccp -v notebooks:/notebooks -d -p 8888:8888 twofiveone/jccp
+	docker run --name jccp \
+		-v notebooks:/notebooks  \
+		-e OS_AUTH_URL=http://198.18.148.124:5000/v2.0 \
+		-e OS_TENANT_ID=01aa33baf27049e196f053504a5966ad \
+		-e OS_TENANT_NAME="ApplicationOrchestration" \
+		-e OS_USERNAME="admin" \
+		-e OS_PASSWORD="contrail123" \
+		-e OS_REGION_NAME="RegionOne" \
+		-d \
+		-p 8888:8888 \
+		twofiveone/jccp
 
-shell: stop run
+start:
+	docker start jccp || true
+
+sh: stop start
 	docker exec -it jccp sh
 
-rm:
+rm: stop
 	docker rm jccp || true
 
 stop:
