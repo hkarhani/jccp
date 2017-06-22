@@ -18,11 +18,15 @@ except:
 
 import cStringIO
 import uuid
+import netaddr
+from sys import getsizeof
+from itertools import chain
 import bottle
 from pysandesh import sandesh_base
 from pysandesh.sandesh_http import SandeshHttp
 from pysandesh.sandesh_uve import SandeshUVETypeMaps
 from pysandesh.util import UTCTimestampUsec, UTCTimestampUsecToString
+from pysandesh import util
 from pysandesh.gen_py.sandesh.constants import *
 
 
@@ -177,7 +181,7 @@ class UvePhysicalRouterConfig(object):
     if oprot.__class__ == TBinaryProtocol.TBinaryProtocolAccelerated and self.thrift_spec is not None and fastbinary is not None:
       oprot.trans.write(fastbinary.encode_binary(self, (self.__class__, self.thrift_spec)))
       return 0
-    if oprot.writeStructBegin('UvePhysicalRouterConfig') < 0: return -1
+    if oprot.writeStructBegin(self.__class__.__name__) < 0: return -1
     if self.name is not None:
       annotations = {}
       if self._table is None or self._table is '': return -1
@@ -300,6 +304,32 @@ class UvePhysicalRouterConfig(object):
       log_str.write('  ')
     return log_str.getvalue()
 
+  def __sizeof__(self):
+    size = 0
+    if self.name is not None:
+      size += getsizeof(self.name)
+    if self.deleted is not None:
+      size += getsizeof(self.deleted)
+    if self.ip_address is not None:
+      size += getsizeof(self.ip_address)
+    if self.connected_bgp_router is not None:
+      size += getsizeof(self.connected_bgp_router)
+    if self.product_info is not None:
+      size += getsizeof(self.product_info)
+    if self.auto_conf_enabled is not None:
+      size += getsizeof(self.auto_conf_enabled)
+    if self.netconf_enabled_status is not None:
+      size += getsizeof(self.netconf_enabled_status)
+    if self.last_commit_time is not None:
+      size += getsizeof(self.last_commit_time)
+    if self.last_commit_duration is not None:
+      size += getsizeof(self.last_commit_duration)
+    if self.commit_status_message is not None:
+      size += getsizeof(self.commit_status_message)
+    if self.total_commits_sent_since_up is not None:
+      size += getsizeof(self.total_commits_sent_since_up)
+    return size
+
   def __repr__(self):
     L = ['%s=%r' % (key, value)
       for key, value in self.__dict__.iteritems()]
@@ -363,7 +393,7 @@ class UvePhysicalRouterConfigTrace(sandesh_base.SandeshUVE):
     if trace:
       log_str.write(str(self._timestamp))
       log_str.write(' ')
-    log_str.write('UvePhysicalRouterConfigTrace: ')                                                                                                                                                                         
+    log_str.write(self.__class__.__name__ + ': ')
     if self.data is not None:
       log_str.write('data = ')
       log_str.write('<<  ')
@@ -406,7 +436,7 @@ class UvePhysicalRouterConfigTrace(sandesh_base.SandeshUVE):
     if oprot.__class__ == TBinaryProtocol.TBinaryProtocolAccelerated and self.thrift_spec is not None and fastbinary is not None:
       oprot.trans.write(fastbinary.encode_binary(self, (self.__class__, self.thrift_spec)))
       return 0
-    if oprot.writeSandeshBegin('UvePhysicalRouterConfigTrace') < 0: return -1
+    if oprot.writeSandeshBegin(self.__class__.__name__) < 0: return -1
     if self.data is not None:
       annotations = {}
       if oprot.writeFieldBegin('data', TType.STRUCT, 1, annotations) < 0: return -1
@@ -427,6 +457,12 @@ class UvePhysicalRouterConfigTrace(sandesh_base.SandeshUVE):
       return False
     return True
 
+  def __sizeof__(self):
+    size = 0
+    if self.data is not None:
+      size += getsizeof(self.data)
+    return size
+
   def __repr__(self):
     L = ['%s=%r' % (key, value)
       for key, value in self.__dict__.iteritems()]
@@ -444,18 +480,9 @@ _SANDESH_REQUEST_LIST = [
 
 
 _SANDESH_UVE_LIST = [
-'UvePhysicalRouterConfigTrace',
-]
-
-
-_SANDESH_UVE_DATA_LIST = [
-'UvePhysicalRouterConfig',
+(UvePhysicalRouterConfigTrace, UvePhysicalRouterConfig),
 ]
 
 
 _SANDESH_ALARM_LIST = [
-]
-
-
-_SANDESH_ALARM_DATA_LIST = [
 ]

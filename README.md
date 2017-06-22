@@ -8,3 +8,8 @@ Usage:
 docker run --name jccp -d -p 8888:8888 twofiveone/jccp
 
 Then browse to http://docker-machine-ip:8888/ to simply begin consuming / testing the APIs of your existing Contrail Cloud Platform Setup. Enjoy!
+
+
+## Todo
+- [x] update `cfgm_common`
+- [x] update `gen` dir

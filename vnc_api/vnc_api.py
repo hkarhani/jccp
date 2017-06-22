@@ -8,6 +8,7 @@ from requests.exceptions import ConnectionError
 import ConfigParser
 import pprint
 from cfgm_common import jsonutils as json
+import sys
 import time
 import platform
 import functools
@@ -15,8 +16,9 @@ import __main__ as main
 import ssl
 import re
 import os
-from urlparse import urlparse
 
+import gen.resource_common
+import gen.vnc_api_client_gen
 from gen.vnc_api_client_gen import all_resource_type_tuples
 from gen.resource_xsd import *
 from gen.resource_client import *
@@ -24,11 +26,10 @@ from gen.generatedssuper import GeneratedsSuper
 
 import cfgm_common
 from cfgm_common import rest, utils
-from cfgm_common.exceptions import (
-        ServiceUnavailableError, NoIdError, PermissionDenied, OverQuota,
-        RefsExistError, TimeOutError, BadRequest, HttpError,
-        ResourceTypeUnknownError)
+from cfgm_common.exceptions import *
 from cfgm_common import ssl_adapter
+
+from pprint import pformat
 
 
 def check_homepage(func):
@@ -36,17 +37,15 @@ def check_homepage(func):
     def wrapper(self, *args, **kwargs):
         if not self._srv_root_url:
             homepage = self._request(rest.OP_GET, self._base_url,
-                                     retry_on_error=False)
+                                    retry_on_error=False)
             self._parse_homepage(homepage)
         return func(self, *args, **kwargs)
     return wrapper
 
-
 def get_object_class(res_type):
-    cls_name = '%s' % (utils.CamelCase(res_type))
+    cls_name = '%s' %(utils.CamelCase(res_type))
     return utils.str_to_class(cls_name, __name__)
 # end get_object_class
-
 
 def _read_cfg(cfg_parser, section, option, default):
         try:
@@ -57,24 +56,21 @@ def _read_cfg(cfg_parser, section, option, default):
             val = default
 
         return val
-# end _read_cfg
-
+#end _read_cfg
 
 def _cfg_curl_logging(api_curl_log_file=None):
-    formatter = logging.Formatter('%(asctime)s %(levelname)-8s %(message)s',
-                                  datefmt='%Y/%m/%d %H:%M:%S')
+    formatter = logging.Formatter('%(asctime)s %(levelname)-8s %(message)s',datefmt='%Y/%m/%d %H:%M:%S')
     curl_logger = logging.getLogger('log_curl')
     curl_logger.setLevel(logging.DEBUG)
-    api_curl_log_file = "/var/log/contrail/%s" % (api_curl_log_file)
+    api_curl_log_file="/var/log/contrail/%s" %(api_curl_log_file)
     if os.path.exists(api_curl_log_file):
-        curl_log_handler = logging.FileHandler(api_curl_log_file, mode='a')
+        curl_log_handler = logging.FileHandler(api_curl_log_file,mode='a')
     else:
-        curl_log_handler = logging.FileHandler(api_curl_log_file, mode='w')
+        curl_log_handler = logging.FileHandler(api_curl_log_file,mode='w')
     curl_log_handler.setFormatter(formatter)
     curl_logger.addHandler(curl_log_handler)
     return curl_logger
 # End _cfg_curl_logging
-
 
 class ActionUriDict(dict):
     """Action uri dictionary with operator([]) overloading to parse home page
@@ -88,86 +84,10 @@ class ActionUriDict(dict):
         try:
             return dict.__getitem__(self, key)
         except KeyError:
-            homepage = self.vnc_api._request(
-                    rest.OP_GET, self.vnc_api._base_url, retry_on_error=False)
+            homepage = self.vnc_api._request(rest.OP_GET, self.vnc_api._base_url,
+                                    retry_on_error=False)
             self.vnc_api._parse_homepage(homepage)
             return dict.__getitem__(self, key)
-
-
-class ApiServerSession(object):
-    def __init__(self, api_server_hosts, max_conns_per_pool, max_pools):
-        self.api_server_hosts = api_server_hosts
-        self.max_conns_per_pool = max_conns_per_pool
-        self.max_pools = max_pools
-        self.api_server_sessions = {}
-        self.active_session = (None, None)
-        self.create()
-    # end __init__
-
-    def create(self):
-        for api_server_host in self.api_server_hosts:
-            api_server_session = requests.Session()
-
-            adapter = requests.adapters.HTTPAdapter(
-                pool_connections=self.max_conns_per_pool,
-                pool_maxsize=self.max_pools)
-            ssladapter = ssl_adapter.SSLAdapter(ssl.PROTOCOL_SSLv23)
-            ssladapter.init_poolmanager(
-                connections=self.max_conns_per_pool,
-                maxsize=self.max_pools)
-            api_server_session.mount("http://", adapter)
-            api_server_session.mount("https://", ssladapter)
-            self.api_server_sessions.update(
-                    {api_server_host: api_server_session})
-    # end create
-
-    def get_url(self, url, api_server_host):
-        parsed_url = urlparse(url)
-        port = parsed_url.netloc.split(':')[-1]
-        modified_url = parsed_url._replace(
-                netloc=':'.join([api_server_host, port]))
-        return modified_url.geturl()
-    # end get_url
-
-    def crud(self, method, url, *args, **kwargs):
-        active_host, active_session = self.active_session
-        if active_host and active_session:
-            if active_host not in url:
-                url = self.get_url(url, active_host)
-            crud_method = getattr(active_session, '%s' % method)
-            try:
-                return crud_method(url, *args, **kwargs)
-            except ConnectionError:
-                self.active_session = (None, None)
-
-        for host, session in self.api_server_sessions.items():
-            if host not in url:
-                url = self.get_url(url, host)
-            crud_method = getattr(session, '%s' % method)
-            try:
-                result = crud_method(url, *args, **kwargs)
-                self.active_session = (host, session)
-                return result
-            except ConnectionError:
-                continue
-        raise ConnectionError
-    # end crud
-
-    def get(self, url, *args, **kwargs):
-        return self.crud('get', url, *args, **kwargs)
-    # end get
-
-    def post(self, url, *args, **kwargs):
-        return self.crud('post', url, *args, **kwargs)
-    # end post
-
-    def put(self, url, *args, **kwargs):
-        return self.crud('put', url, *args, **kwargs)
-    # end put
-
-    def delete(self, url, *args, **kwargs):
-        return self.crud('delete', url, *args, **kwargs)
-    # end delete
 
 
 class VncApi(object):
@@ -176,15 +96,12 @@ class VncApi(object):
     hostname = platform.node()
     _DEFAULT_HEADERS = {
         'Content-type': 'application/json; charset="UTF-8"',
-        'X-Contrail-Useragent': '%s:%s' % (hostname,
-                                           getattr(main, '__file__', '')),
-        }
+        'X-Contrail-Useragent': '%s:%s'
+             %(hostname, getattr(main, '__file__', '')),
+    }
 
-    _NOAUTH_AUTHN_STRATEGY = 'noauth'
-    _KEYSTONE_AUTHN_STRATEGY = 'keystone'
-    _DEFAULT_AUTHN_STRATEGY = _KEYSTONE_AUTHN_STRATEGY
-    AUTHN_SUPPORTED_STRATEGIES = [_NOAUTH_AUTHN_STRATEGY,
-                                  _KEYSTONE_AUTHN_STRATEGY]
+    _AUTHN_SUPPORTED_TYPES = ["keystone"]
+    _DEFAULT_AUTHN_TYPE = "keystone"
     _DEFAULT_AUTHN_HEADERS = _DEFAULT_HEADERS
     _DEFAULT_AUTHN_PROTOCOL = "http"
     _DEFAULT_AUTHN_SERVER = _DEFAULT_WEB_SERVER
@@ -199,10 +116,10 @@ class VncApi(object):
     # contrail-api will remain to be on http
     # with LB (haproxy/F5/nginx..etc) configured for
     # ssl termination on port 8082(default contrail-api port)
-    _DEFAULT_API_SERVER_CONNECT = "http"
-    _DEFAULT_API_SERVER_SSL_CONNECT = "https"
-    _DEFAULT_KS_CERT_BUNDLE = "keystonecertbundle.pem"
-    _DEFAULT_API_CERT_BUNDLE = "apiservercertbundle.pem"
+    _DEFAULT_API_SERVER_CONNECT="http"
+    _DEFAULT_API_SERVER_SSL_CONNECT="https"
+    _DEFAULT_KS_CERT_BUNDLE="keystonecertbundle.pem"
+    _DEFAULT_API_CERT_BUNDLE="apiservercertbundle.pem"
 
     # Connection to api-server through Quantum
     _DEFAULT_WEB_PORT = 8082
@@ -220,7 +137,7 @@ class VncApi(object):
                  api_server_host=None, api_server_port=None,
                  api_server_url=None, conf_file=None, user_info=None,
                  auth_token=None, auth_host=None, auth_port=None,
-                 auth_protocol=None, auth_url=None, auth_type=None,
+                 auth_protocol = None, auth_url=None, auth_type=None,
                  wait_for_connect=False, api_server_use_ssl=False,
                  domain_name=None, exclude_hrefs=None, auth_token_url=None,
                  apicertfile=None, apikeyfile=None, apicafile=None,
@@ -230,15 +147,15 @@ class VncApi(object):
         self._obj_serializer = self._obj_serializer_diff
         for object_type, resource_type in all_resource_type_tuples:
             for oper_str in ('_create', '_read', '_update', '_delete',
-                             's_list', '_get_default_id'):
-                method = getattr(self, '_object%s' % (oper_str))
+                         's_list', '_get_default_id'):
+                method = getattr(self, '_object%s' %(oper_str))
                 bound_method = functools.partial(method, resource_type)
                 functools.update_wrapper(bound_method, method)
                 if oper_str == '_get_default_id':
                     setattr(self, 'get_default_%s_id' % (object_type),
                             bound_method)
                 else:
-                    setattr(self, '%s%s' % (object_type, oper_str),
+                    setattr(self, '%s%s' %(object_type, oper_str),
                             bound_method)
 
         cfg_parser = ConfigParser.ConfigParser()
@@ -253,69 +170,34 @@ class VncApi(object):
         # API server SSL Support
         use_ssl = api_server_use_ssl
         if isinstance(api_server_use_ssl, basestring):
-            use_ssl = (api_server_use_ssl.lower() == 'true')
+           use_ssl = (api_server_use_ssl.lower() == 'true')
         if use_ssl:
-            self._api_connect_protocol = VncApi._DEFAULT_API_SERVER_SSL_CONNECT
+             self._api_connect_protocol = VncApi._DEFAULT_API_SERVER_SSL_CONNECT
 
         if not api_server_host:
-            self._web_hosts = _read_cfg(cfg_parser, 'global', 'WEB_SERVER',
-                                        self._DEFAULT_WEB_SERVER).split(',')
-        elif isinstance(api_server_host, list):
-            self._web_hosts = api_server_host
+            self._web_host = _read_cfg(cfg_parser, 'global', 'WEB_SERVER',
+                                       self._DEFAULT_WEB_SERVER)
         else:
-            self._web_hosts = [api_server_host]
-        self._web_host = self._web_hosts[0]
+            self._web_host = api_server_host
 
-        # contrail-api SSL support
-        try:
-            self._apiinsecure = cfg_parser.getboolean('global', 'insecure')
-        except (AttributeError,
-                ValueError,
-                ConfigParser.NoOptionError,
-                ConfigParser.NoSectionError):
-            self._apiinsecure = False
-        apicertfile = (apicertfile or
-                       _read_cfg(cfg_parser, 'global', 'certfile', ''))
-        apikeyfile = (apikeyfile or
-                      _read_cfg(cfg_parser, 'global', 'keyfile', ''))
-        apicafile = (apicafile or
-                     _read_cfg(cfg_parser, 'global', 'cafile', ''))
-
-        self._use_api_certs = False
-        if apicafile and api_server_use_ssl:
-            certs = [apicafile]
-            if apikeyfile and apicertfile:
-                certs = [apicertfile, apikeyfile, apicafile]
-            apicertbundle = os.path.join(
-                    '/tmp', self._web_host.replace('.', '_'),
-                    VncApi._DEFAULT_API_CERT_BUNDLE)
-            self._apicertbundle = utils.getCertKeyCaBundle(apicertbundle,
-                                                           certs)
-            self._use_api_certs = True
-
-        self._authn_strategy = auth_type or \
+        # keystone
+        self._authn_type = auth_type or \
             _read_cfg(cfg_parser, 'auth', 'AUTHN_TYPE',
-                      self._DEFAULT_AUTHN_STRATEGY)
-        if self._authn_strategy not in VncApi.AUTHN_SUPPORTED_STRATEGIES:
-            raise NotImplementedError("The authentication strategy '%s' is "
-                                      "not supported by the VNC API lib" %
-                                      self._authn_strategy)
+                      self._DEFAULT_AUTHN_TYPE)
 
-        self._user_info = user_info
-
-        if self._authn_strategy == VncApi._KEYSTONE_AUTHN_STRATEGY:
+        if self._authn_type == 'keystone':
             self._authn_protocol = auth_protocol or \
                 _read_cfg(cfg_parser, 'auth', 'AUTHN_PROTOCOL',
-                          self._DEFAULT_AUTHN_PROTOCOL)
+                                           self._DEFAULT_AUTHN_PROTOCOL)
             self._authn_server = auth_host or \
                 _read_cfg(cfg_parser, 'auth', 'AUTHN_SERVER',
-                          self._DEFAULT_AUTHN_SERVER)
+                                           self._DEFAULT_AUTHN_SERVER)
             self._authn_port = auth_port or \
                 _read_cfg(cfg_parser, 'auth', 'AUTHN_PORT',
-                          self._DEFAULT_AUTHN_PORT)
+                                         self._DEFAULT_AUTHN_PORT)
             self._authn_url = auth_url or \
                 _read_cfg(cfg_parser, 'auth', 'AUTHN_URL',
-                          self._DEFAULT_AUTHN_URL)
+                                        self._DEFAULT_AUTHN_URL)
             self._username = username or \
                 _read_cfg(cfg_parser, 'auth', 'AUTHN_USER',
                           self._DEFAULT_AUTHN_USER)
@@ -331,32 +213,59 @@ class VncApi(object):
             self._authn_token_url = auth_token_url or \
                 _read_cfg(cfg_parser, 'auth', 'AUTHN_TOKEN_URL', None)
 
-            # keystone SSL support
+            #contrail-api SSL support
             try:
-                self._ksinsecure = cfg_parser.getboolean('auth', 'insecure')
+               self._apiinsecure = cfg_parser.getboolean('global','insecure')
             except (AttributeError,
                     ValueError,
                     ConfigParser.NoOptionError,
                     ConfigParser.NoSectionError):
-                self._ksinsecure = False
-            kscertfile = (kscertfile or
-                          _read_cfg(cfg_parser, 'auth', 'certfile', ''))
-            kskeyfile = (kskeyfile or
-                         _read_cfg(cfg_parser, 'auth', 'keyfile', ''))
-            kscafile = (kscafile or
-                        _read_cfg(cfg_parser, 'auth', 'cafile', ''))
+               self._apiinsecure = False
+            apicertfile = (apicertfile or
+                           _read_cfg(cfg_parser,'global','certfile',''))
+            apikeyfile = (apikeyfile or
+                          _read_cfg(cfg_parser,'global','keyfile',''))
+            apicafile = (apicafile or
+                         _read_cfg(cfg_parser,'global','cafile',''))
 
-            self._use_ks_certs = False
+            self._use_api_certs=False
+            if apicafile and api_server_use_ssl:
+                certs=[apicafile]
+                if apikeyfile and apicertfile:
+                    certs=[apicertfile, apikeyfile, apicafile]
+                apicertbundle = os.path.join(
+                    '/tmp', self._web_host.replace('.', '_'),
+                     VncApi._DEFAULT_API_CERT_BUNDLE)
+                self._apicertbundle=utils.getCertKeyCaBundle(apicertbundle,
+                                                             certs)
+                self._use_api_certs=True
+
+            # keystone SSL support
+            try:
+              self._ksinsecure = cfg_parser.getboolean('auth', 'insecure')
+            except (AttributeError,
+                    ValueError,
+                    ConfigParser.NoOptionError,
+                    ConfigParser.NoSectionError):
+              self._ksinsecure = False
+            kscertfile = (kscertfile or
+                          _read_cfg(cfg_parser,'auth','certfile',''))
+            kskeyfile = (kskeyfile or
+                         _read_cfg(cfg_parser,'auth','keyfile',''))
+            kscafile = (kscafile or
+                        _read_cfg(cfg_parser,'auth','cafile',''))
+
+            self._use_ks_certs=False
             if kscafile and self._authn_protocol == 'https':
-                certs = [kscafile]
+                certs=[kscafile]
                 if kskeyfile and kscertfile:
-                    certs = [kscertfile, kskeyfile, kscafile]
+                    certs=[kscertfile, kskeyfile, kscafile]
                 kscertbundle = os.path.join(
                         '/tmp', self._web_host.replace('.', '_'),
                         VncApi._DEFAULT_KS_CERT_BUNDLE)
-                self._kscertbundle = utils.getCertKeyCaBundle(kscertbundle,
-                                                              certs)
-                self._use_ks_certs = True
+                self._kscertbundle=utils.getCertKeyCaBundle(kscertbundle,
+                                                            certs)
+                self._use_ks_certs=True
 
             if 'v2' in self._authn_url:
                 self._authn_body = \
@@ -366,24 +275,25 @@ class VncApi(object):
                     ' "tenantName":"%s"}}' % (self._tenant_name)
             else:
                 self._authn_body = \
-                        '{"auth":{"identity":{' + \
+                     '{"auth":{"identity":{' + \
                         '"methods": ["password"],' + \
-                        ' "password":{' + \
-                        ' "user":{' + \
-                        ' "name": "%s",' % (self._username) + \
-                        ' "domain": { "name": "%s" },' % (self._domain_name) +\
-                        ' "password": "%s"' % (self._password) + \
+                          ' "password":{' + \
+                            ' "user":{' + \
+                               ' "name": "%s",' % (self._username) + \
+                               ' "domain": { "name": "%s" },' % (self._domain_name) + \
+                               ' "password": "%s"' % (self._password) + \
+                             '}' + \
+                            '}' + \
+                          '},' + \
+                          ' "scope":{' + \
+                            ' "project":{' + \
+                              ' "domain": { "name": "%s" },' % (self._domain_name) + \
+                              ' "name": "%s"' % (self._tenant_name) + \
+                            '}' + \
+                          '}' + \
                         '}' + \
-                        '}' + \
-                        '},' + \
-                        ' "scope":{' + \
-                        ' "project":{' + \
-                        ' "domain": { "name": "%s" },' % (self._domain_name) +\
-                        ' "name": "%s"' % (self._tenant_name) + \
-                        '}' + \
-                        '}' + \
-                        '}' + \
-                        '}'
+                     '}'
+            self._user_info = user_info
 
         if not api_server_port:
             self._web_port = _read_cfg(cfg_parser, 'global', 'WEB_PORT',
@@ -400,9 +310,8 @@ class VncApi(object):
 
         self._curl_logging = False
         if _read_cfg(cfg_parser, 'global', 'curl_log', False):
-            self._curl_logging = True
-            self._curl_logger = _cfg_curl_logging(_read_cfg(
-                cfg_parser, 'global', 'curl_log', False))
+            self._curl_logging=True
+            self._curl_logger=_cfg_curl_logging(_read_cfg(cfg_parser,'global','curl_log',False))
 
         # Where client's view of world begins
         if not api_server_url:
@@ -418,8 +327,7 @@ class VncApi(object):
         self._action_uri = ActionUriDict(self)
 
         self._headers = self._DEFAULT_HEADERS.copy()
-        if self._authn_strategy == VncApi._KEYSTONE_AUTHN_STRATEGY:
-            self._headers[rest.hdr_client_tenant()] = self._tenant_name
+        self._headers[rest.hdr_client_tenant()] = self._tenant_name
 
         self._auth_token_input = False
         self._auth_token = None
@@ -461,7 +369,7 @@ class VncApi(object):
             else:
                 # connected succesfully
                 break
-    # end __init__
+    #end __init__
 
     @check_homepage
     def _object_create(self, res_type, obj):
@@ -473,9 +381,10 @@ class VncApi(object):
         # encode props + refs in object body
         obj_json_param = json.dumps(obj, default=self._obj_serializer)
 
-        json_body = '{"%s":%s}' % (res_type, obj_json_param)
-        content = self._request_server(
-                rest.OP_POST, obj_cls.create_uri, data=json_body)
+        json_body = '{"%s":%s}' %(res_type, obj_json_param)
+        content = self._request_server(rest.OP_POST,
+                       obj_cls.create_uri,
+                       data=json_body)
 
         obj_dict = json.loads(content)[res_type]
         obj.uuid = obj_dict['uuid']
@@ -510,9 +419,9 @@ class VncApi(object):
 
         if prop_coll_body['updates']:
             prop_coll_json = json.dumps(prop_coll_body)
-            self._request_server(
-                    rest.OP_POST, self._action_uri['prop-collection-update'],
-                    data=prop_coll_json)
+            self._request_server(rest.OP_POST,
+                self._action_uri['prop-collection-update'],
+                data=prop_coll_json)
 
         return obj.uuid
     # end _object_create
@@ -534,8 +443,8 @@ class VncApi(object):
             comma_sep_fields = ','.join(f for f in fields)
             query_params = {'fields': comma_sep_fields}
         else:
-            query_params = {'exclude_back_refs': True,
-                            'exclude_children': True}
+            query_params = {'exclude_back_refs':True,
+                            'exclude_children':True,}
 
         if self._exclude_hrefs is not None:
             query_params['exclude_hrefs'] = True
@@ -564,10 +473,9 @@ class VncApi(object):
             # Ignore fields with None value in json representation
             obj_json_param = json.dumps(obj, default=self._obj_serializer)
             if obj_json_param:
-                json_body = '{"%s":%s}' % (res_type, obj_json_param)
+                json_body = '{"%s":%s}' %(res_type, obj_json_param)
                 uri = obj_cls.resource_uri_base[res_type] + '/' + obj.uuid
-                content = self._request_server(
-                        rest.OP_PUT, uri, data=json_body)
+                content = self._request_server(rest.OP_PUT, uri, data=json_body)
 
         # Generate POST on /prop-collection-update if needed/pending
         prop_coll_body = {'uuid': obj.uuid,
@@ -591,26 +499,24 @@ class VncApi(object):
 
         if prop_coll_body['updates']:
             prop_coll_json = json.dumps(prop_coll_body)
-            self._request_server(
-                    rest.OP_POST, self._action_uri['prop-collection-update'],
-                    data=prop_coll_json)
+            self._request_server(rest.OP_POST,
+                self._action_uri['prop-collection-update'],
+                data=prop_coll_json)
 
         # Generate POST on /ref-update if needed/pending
         for ref_name in obj._pending_ref_updates:
-            ref_orig = set(
-                    [(x.get('uuid'), tuple(x.get('to', [])), x.get('attr'))
+             ref_orig = set([(x.get('uuid'),
+                             tuple(x.get('to', [])), x.get('attr'))
                         for x in getattr(obj, '_original_' + ref_name, [])])
-            ref_new = set(
-                    [(x.get('uuid'), tuple(x.get('to', [])), x.get('attr'))
-                        for x in getattr(obj, ref_name, [])])
-            for ref in ref_orig - ref_new:
-                self.ref_update(
-                        res_type, obj.uuid, ref_name, ref[0], list(ref[1]),
-                        'DELETE')
-            for ref in ref_new - ref_orig:
-                self.ref_update(
-                        res_type, obj.uuid, ref_name, ref[0], list(ref[1]),
-                        'ADD', ref[2])
+             ref_new = set([(x.get('uuid'),
+                            tuple(x.get('to', [])), x.get('attr'))
+                       for x in getattr(obj, ref_name, [])])
+             for ref in ref_orig - ref_new:
+                 self.ref_update(res_type, obj.uuid, ref_name, ref[0],
+                                 list(ref[1]), 'DELETE')
+             for ref in ref_new - ref_orig:
+                 self.ref_update(res_type, obj.uuid, ref_name, ref[0],
+                                 list(ref[1]), 'ADD', ref[2])
         obj.clear_pending_updates()
 
         return content
@@ -618,12 +524,12 @@ class VncApi(object):
 
     @check_homepage
     def _objects_list(self, res_type, parent_id=None, parent_fq_name=None,
-                      obj_uuids=None, back_ref_id=None, fields=None,
-                      detail=False, count=False, filters=None, shared=False):
-        return self.resource_list(
-                res_type, parent_id=parent_id, parent_fq_name=parent_fq_name,
-                back_ref_id=back_ref_id, obj_uuids=obj_uuids, fields=fields,
-                detail=detail, count=count, filters=filters, shared=shared)
+                     obj_uuids=None, back_ref_id=None, fields=None,
+                     detail=False, count=False, filters=None):
+        return self.resource_list(res_type, parent_id=parent_id,
+            parent_fq_name=parent_fq_name, back_ref_id=back_ref_id,
+            obj_uuids=obj_uuids, fields=fields, detail=detail, count=count,
+            filters=filters)
     # end _objects_list
 
     @check_homepage
@@ -638,7 +544,7 @@ class VncApi(object):
         id = result
         uri = obj_cls.resource_uri_base[res_type] + '/' + id
 
-        self._request_server(rest.OP_DELETE, uri)
+        content = self._request_server(rest.OP_DELETE, uri)
     # end _object_delete
 
     def _object_get_default_id(self, res_type):
@@ -652,144 +558,133 @@ class VncApi(object):
             return obj.serialize_to_json(obj.get_pending_updates())
         else:
             return dict((k, v) for k, v in obj.__dict__.iteritems())
-    # end _obj_serializer_diff
+    #end _obj_serializer_diff
 
     def _obj_serializer_all(self, obj):
         if hasattr(obj, 'serialize_to_json'):
             return obj.serialize_to_json()
         else:
             return dict((k, v) for k, v in obj.__dict__.iteritems())
-    # end _obj_serializer_all
+    #end _obj_serializer_all
 
     def _create_api_server_session(self):
-        self._api_server_session = ApiServerSession(
-                self._web_hosts, self._max_conns_per_pool, self._max_pools)
-    # end _create_api_server_session
+        self._api_server_session = requests.Session()
+
+        adapter = requests.adapters.HTTPAdapter(
+            pool_connections=self._max_conns_per_pool,
+            pool_maxsize=self._max_pools)
+        ssladapter = ssl_adapter.SSLAdapter(ssl.PROTOCOL_SSLv23)
+        ssladapter.init_poolmanager(
+            connections=self._max_conns_per_pool,
+            maxsize=self._max_pools)
+        self._api_server_session.mount("http://", adapter)
+        self._api_server_session.mount("https://", ssladapter)
+    #end _create_api_server_session
 
     # Authenticate with configured service
     def _authenticate(self, response=None, headers=None):
-        if self._authn_strategy == VncApi._NOAUTH_AUTHN_STRATEGY:
+        if self._authn_type is None:
             return headers
 
-        elif self._authn_strategy == VncApi._KEYSTONE_AUTHN_STRATEGY:
-            if self._authn_token_url:
-                url = self._authn_token_url
-            else:
-                url = "%s://%s:%s%s" % (
-                    self._authn_protocol,
-                    self._authn_server,
-                    self._authn_port,
-                    self._authn_url,
-                )
-            new_headers = headers or {}
-            try:
-                if self._ksinsecure:
-                    response = requests.post(
-                        url,
-                        data=self._authn_body,
-                        headers=self._DEFAULT_AUTHN_HEADERS,
-                        verify=False,
-                    )
-                elif not self._ksinsecure and self._use_ks_certs:
-                    response = requests.post(
-                        url,
-                        data=self._authn_body,
-                        headers=self._DEFAULT_AUTHN_HEADERS,
-                        verify=self._kscertbundle,
-                    )
-                else:
-                    response = requests.post(
-                        url,
-                        data=self._authn_body,
-                        headers=self._DEFAULT_AUTHN_HEADERS,
-                    )
-            except Exception as e:
-                errmsg = 'Unable to connect to keystone for authentication. '
-                errmsg += 'Exception %s' % (e)
-                raise RuntimeError(errmsg)
+        if self._authn_token_url:
+            url = self._authn_token_url
+        else:
+            url = "%s://%s:%s%s" % (self._authn_protocol, self._authn_server, self._authn_port,
+                                  self._authn_url)
+        new_headers = headers or {}
+        try:
+           if self._ksinsecure:
+                response = requests.post(url, data=self._authn_body,
+                                     headers=self._DEFAULT_AUTHN_HEADERS, verify=False)
+           elif not self._ksinsecure and self._use_ks_certs:
+                response = requests.post(url, data=self._authn_body,
+                                         headers=self._DEFAULT_AUTHN_HEADERS, verify=self._kscertbundle)
+           else:
+                response = requests.post(url, data=self._authn_body,
+                                         headers=self._DEFAULT_AUTHN_HEADERS)
+        except Exception as e:
+            errmsg = 'Unable to connect to keystone for authentication. '
+            errmsg += 'Exception %s' %(e)
+            raise RuntimeError(errmsg)
 
-            if (response.status_code == 200) or (response.status_code == 201):
-                # plan is to re-issue original request with new token
-                if 'v2' in self._authn_url:
-                    authn_content = json.loads(response.text)
-                    self._auth_token = authn_content['access']['token']['id']
-                else:
-                    self._auth_token = response.headers['x-subject-token']
-                new_headers['X-AUTH-TOKEN'] = self._auth_token
-                return new_headers
+        if (response.status_code == 200) or (response.status_code == 201):
+            # plan is to re-issue original request with new token
+            if 'v2' in self._authn_url:
+                authn_content = json.loads(response.text)
+                self._auth_token = authn_content['access']['token']['id']
             else:
-                raise RuntimeError('Authentication Failure')
-    # end _authenticate
+                self._auth_token = response.headers['x-subject-token']
+            new_headers['X-AUTH-TOKEN'] = self._auth_token
+            return new_headers
+        else:
+            raise RuntimeError('Authentication Failure')
+    #end _authenticate
 
     def _http_get(self, uri, headers=None, query_params=None):
-        url = "%s://%s:%s%s" % (self._api_connect_protocol,
-                                self._web_host, self._web_port, uri)
+        url = "%s://%s:%s%s" \
+              % (self._api_connect_protocol,self._web_host, self._web_port, uri)
         if self._apiinsecure:
-            response = self._api_server_session.get(
-                    url, headers=headers, params=query_params, verify=False)
+             response = self._api_server_session.get(url, headers=headers,
+                                                      params=query_params,verify=False)
         elif not self._apiinsecure and self._use_api_certs:
-            response = self._api_server_session.get(
-                   url, headers=headers, params=query_params,
-                   verify=self._apicertbundle)
+             response = self._api_server_session.get(url, headers=headers,
+                                                     params=query_params,verify=self._apicertbundle)
         else:
-            response = self._api_server_session.get(
-                    url, headers=headers, params=query_params)
-        # print 'Sending Request URL: ' + pformat(url)
-        # print '                Headers: ' + pformat(headers)
-        # print '                QParams: ' + pformat(query_params)
-        # response = self._api_server_session.get(url, headers = headers,
+             response = self._api_server_session.get(url, headers=headers,
+                                                     params=query_params)
+        #print 'Sending Request URL: ' + pformat(url)
+        #print '                Headers: ' + pformat(headers)
+        #print '                QParams: ' + pformat(query_params)
+        #response = self._api_server_session.get(url, headers = headers,
         #                                        params = query_params)
-        # print 'Received Response: ' + pformat(response.text)
+        #print 'Received Response: ' + pformat(response.text)
         return (response.status_code, response.text)
-    # end _http_get
+    #end _http_get
 
     def _http_post(self, uri, body, headers):
-        url = "%s://%s:%s%s" % (self._api_connect_protocol,
-                                self._web_host, self._web_port, uri)
+        url = "%s://%s:%s%s" \
+              % (self._api_connect_protocol,self._web_host, self._web_port, uri)
         if self._apiinsecure:
-            response = self._api_server_session.post(
-                    url, data=body, headers=headers, verify=False)
+             response = self._api_server_session.post(url, data=body,
+                                                     headers=headers, verify=False)
         elif not self._apiinsecure and self._use_api_certs:
-            response = self._api_server_session.post(
-                     url, data=body, headers=headers,
-                     verify=self._apicertbundle)
+             response = self._api_server_session.post(url, data=body,
+                                                      headers=headers, verify=self._apicertbundle)
         else:
-            response = self._api_server_session.post(
-                    url, data=body, headers=headers)
+             response = self._api_server_session.post(url, data=body,
+                                                      headers=headers)
         return (response.status_code, response.text)
-    # end _http_post
+    #end _http_post
 
     def _http_delete(self, uri, body, headers):
-        url = "%s://%s:%s%s" % (self._api_connect_protocol,
-                                self._web_host, self._web_port, uri)
+        url = "%s://%s:%s%s" \
+              % (self._api_connect_protocol,self._web_host, self._web_port, uri)
         if self._apiinsecure:
-            response = self._api_server_session.delete(
-                    url, data=body, headers=headers, verify=False)
+            response = self._api_server_session.delete(url, data=body,
+                                                   headers=headers, verify=False)
         elif not self._apiinsecure and self._use_api_certs:
-            response = self._api_server_session.delete(
-                    url, data=body, headers=headers,
-                    verify=self._apicertbundle)
+            response = self._api_server_session.delete(url, data=body,
+                                                       headers=headers, verify=self._apicertbundle)
         else:
-            response = self._api_server_session.delete(
-                    url, data=body, headers=headers)
+            response = self._api_server_session.delete(url, data=body,
+                                                       headers=headers)
         return (response.status_code, response.text)
-    # end _http_delete
+    #end _http_delete
 
     def _http_put(self, uri, body, headers):
-        url = "%s://%s:%s%s" % (self._api_connect_protocol,
-                                self._web_host, self._web_port, uri)
+        url = "%s://%s:%s%s" \
+              % (self._api_connect_protocol,self._web_host, self._web_port, uri)
         if self._apiinsecure:
-            response = self._api_server_session.put(
-                     url, data=body, headers=headers, verify=False)
+             response = self._api_server_session.put(url, data=body,
+                                                headers=headers, verify=False)
         elif not self._apiinsecure and self._use_api_certs:
-            response = self._api_server_session.put(
-                     url, data=body, headers=headers,
-                     verify=self._apicertbundle)
+             response = self._api_server_session.put(url, data=body,
+                                                     headers=headers, verify=self._apicertbundle)
         else:
-            response = self._api_server_session.put(
-                    url, data=body, headers=headers)
+             response = self._api_server_session.put(url, data=body,
+                                                     headers=headers)
         return (response.status_code, response.text)
-    # end _http_delete
+    #end _http_delete
 
     def _parse_homepage(self, py_obj):
         srv_root_url = py_obj['href']
@@ -799,14 +694,12 @@ class VncApi(object):
             # strip base from *_url to get *_uri
             uri = link['link']['href'].replace(srv_root_url, '')
             if link['link']['rel'] == 'collection':
-                cls = utils.obj_type_to_vnc_class(link['link']['name'],
-                                                  __name__)
+                cls = utils.obj_type_to_vnc_class(link['link']['name'], __name__)
                 if not cls:
                     continue
                 cls.create_uri = uri
             elif link['link']['rel'] == 'resource-base':
-                cls = utils.obj_type_to_vnc_class(link['link']['name'],
-                                                  __name__)
+                cls = utils.obj_type_to_vnc_class(link['link']['name'], __name__)
                 if not cls:
                     continue
                 resource_type = link['link']['name']
@@ -814,7 +707,7 @@ class VncApi(object):
             elif link['link']['rel'] == 'action':
                 act_type = link['link']['name']
                 self._action_uri[act_type] = uri
-    # end _parse_homepage
+    #end _parse_homepage
 
     def _find_url(self, json_body, resource_name):
         rname = unicode(resource_name)
@@ -825,7 +718,7 @@ class VncApi(object):
                 return link['link']['href']
 
         return None
-    # end _find_url
+    #end _find_url
 
     def _read_args_to_id(self, res_type, fq_name=None, fq_name_str=None,
                          id=None, ifmap_id=None):
@@ -844,53 +737,50 @@ class VncApi(object):
         if fq_name_str:
             return (True, self.fq_name_to_id(res_type, fq_name_str.split(':')))
         if ifmap_id:
-            return (False, "ifmap_id is no longer supported")
-    # end _read_args_to_id
+            return (True, self.ifmap_to_id(ifmap_id))
+    #end _read_args_to_id
 
     def _request_server(self, op, url, data=None, retry_on_error=True,
                         retry_after_authn=False, retry_count=30):
         if not self._srv_root_url:
             raise ConnectionError("Unable to retrive the api server root url.")
 
-        return self._request(
-                op, url, data=data, retry_on_error=retry_on_error,
-                retry_after_authn=retry_after_authn, retry_count=retry_count)
-    # end _request_server
+        return self._request(op, url, data=data, retry_on_error=retry_on_error,
+                      retry_after_authn=retry_after_authn,
+                      retry_count=retry_count)
+    #end _request_server
 
     def _log_curl(self, op, url, data=None):
-        op_str = {rest.OP_GET: 'GET', rest.OP_POST: 'POST',
-                  rest.OP_DELETE: 'DELETE', rest.OP_PUT: 'PUT'}
-        base_url = "http://%s:%s" % (self._authn_server, self._web_port)
-        cmd_url = "%s%s" % (base_url, url)
-        cmd_hdr = None
-        cmd_op = str(op_str[op])
-        cmd_data = None
-        header_list = [j + ":" + k for (j, k) in self._headers.items()]
+        op_str = {rest.OP_GET: 'GET', rest.OP_POST: 'POST', rest.OP_DELETE: 'DELETE', rest.OP_PUT: 'PUT'}
+        base_url="http://%s:%s" %(self._authn_server, self._web_port)
+        cmd_url="%s%s" %(base_url, url)
+        cmd_hdr=None
+        cmd_op=str(op_str[op])
+        cmd_data=None
+        header_list = [ j + ":" + k for (j,k) in self._headers.items()]
         header_string = ''.join(['-H "' + str(i) + '" ' for i in header_list])
-        pattern = re.compile(r'(.*-H "X-AUTH-TOKEN:)[0-9a-z]+(")')
-        cmd_hdr = re.sub(pattern, r'\1$TOKEN\2', header_string)
+        pattern=re.compile(r'(.*-H "X-AUTH-TOKEN:)[0-9a-z]+(")')
+        cmd_hdr=re.sub(pattern,r'\1$TOKEN\2',header_string)
         if op == rest.OP_GET:
             if data:
-                query_string = "?" + "&".join([str(i) + "=" + str(j)
-                                               for (i, j) in data.items()])
-                cmd_url = base_url + url+query_string
+                query_string="?" + "&".join([ str(i)+ "=" + str(j) for (i,j) in data.items()])
+                cmd_url=base_url+url+query_string
         elif op == rest.OP_DELETE:
             pass
         else:
-            cmd_data = str(data)
+            cmd_data=str(data)
         if cmd_data:
-            cmd = "curl -X %s %s -d '%s' %s" % (cmd_op, cmd_hdr,
-                                                cmd_data, cmd_url)
+            cmd="curl -X %s %s -d '%s' %s" %(cmd_op, cmd_hdr, cmd_data, cmd_url)
         else:
-            cmd = "curl -X %s %s %s" % (cmd_op, cmd_hdr, cmd_url)
+            cmd="curl -X %s %s %s" %(cmd_op, cmd_hdr, cmd_url)
         self._curl_logger.debug(cmd)
-    # end _log_curl
+    #End _log_curl
 
     def _request(self, op, url, data=None, retry_on_error=True,
                  retry_after_authn=False, retry_count=30):
         retried = 0
         if self._curl_logging:
-            self._log_curl(op=op, url=url, data=data)
+            self._log_curl(op=op,url=url,data=data)
         while True:
             try:
                 if (op == rest.OP_GET):
@@ -899,35 +789,32 @@ class VncApi(object):
                     if status == 200:
                         content = json.loads(content)
                 elif (op == rest.OP_POST):
-                    (status, content) = self._http_post(
-                            url, body=data, headers=self._headers)
+                    (status, content) = self._http_post(url, body=data,
+                                                        headers=self._headers)
                 elif (op == rest.OP_DELETE):
-                    (status, content) = self._http_delete(
-                            url, body=data, headers=self._headers)
+                    (status, content) = self._http_delete(url, body=data,
+                                                          headers=self._headers)
                 elif (op == rest.OP_PUT):
-                    (status, content) = self._http_put(
-                            url, body=data, headers=self._headers)
+                    (status, content) = self._http_put(url, body=data,
+                                                       headers=self._headers)
                 else:
                     raise ValueError
             except ConnectionError:
-                if (not retry_on_error or not retry_count):
+                if not retry_on_error:
                     raise ConnectionError
 
                 time.sleep(1)
                 self._create_api_server_session()
-                retry_count -= 1
                 continue
 
             if status == 200:
                 return content
 
             # Exception Response, see if it can be resolved
-            if ((status == 401) and (not self._auth_token_input) and
-                    (not retry_after_authn)):
+            if ((status == 401) and (not self._auth_token_input) and (not retry_after_authn)):
                 self._headers = self._authenticate(content, self._headers)
                 # Recursive call after authentication (max 1 level)
-                content = self._request(
-                        op, url, data=data, retry_after_authn=True)
+                content = self._request(op, url, data=data, retry_after_authn=True)
 
                 return content
             elif status == 404:
@@ -947,8 +834,7 @@ class VncApi(object):
                 # 503: no API server available even before sending the request
                 retried += 1
                 if retried >= retry_count:
-                    raise ServiceUnavailableError(
-                            'Service Unavailable Timeout %d' % status)
+                    raise ServiceUnavailableError('Service Unavailable Timeout %d' % status)
 
                 time.sleep(1)
                 continue
@@ -958,10 +844,10 @@ class VncApi(object):
                 raise HttpError(status, content)
         # end while True
 
-    # end _request_server
+    #end _request_server
 
-    def _prop_collection_post(self, obj_uuid, obj_field,
-                              oper, value, position):
+    def _prop_collection_post(
+        self, obj_uuid, obj_field, oper, value, position):
         uri = self._action_uri['prop-collection-update']
         if isinstance(value, GeneratedsSuper):
             serialized_value = value.exportDict('')
@@ -995,10 +881,10 @@ class VncApi(object):
         obj_class = utils.obj_type_to_vnc_class(res_type, __name__)
 
         key_name = obj_class.prop_map_field_key_names[obj_field]
-        if isinstance(elem, GeneratedsSuper):
-            return getattr(elem, key_name)
+        if isinstance(value, GeneratedsSuper):
+            return getattr(value, key_name)
 
-        return elem[key_name]
+        return value[key_name]
     # end _prop_map_get_elem_key
 
     @check_homepage
@@ -1061,13 +947,12 @@ class VncApi(object):
             raise he
 
         return json.loads(content)['uuid']
-    # end ref_update
+    #end ref_update
 
     @check_homepage
     def ref_relax_for_delete(self, obj_uuid, ref_uuid):
-        # don't account for reference of <obj_uuid> in delete of
-        # <ref_uuid> in future
-        json_body = json.dumps({'uuid': obj_uuid, 'ref-uuid': ref_uuid})
+        # don't account for reference of <obj_uuid> in delete of <ref_uuid> in future
+        json_body =  json.dumps({'uuid': obj_uuid, 'ref-uuid': ref_uuid})
         uri = self._action_uri['ref-relax-for-delete']
 
         try:
@@ -1082,7 +967,7 @@ class VncApi(object):
 
     def obj_to_id(self, obj):
         return self.fq_name_to_id(obj.get_type(), obj.get_fq_name())
-    # end obj_to_id
+    #end obj_to_id
 
     @check_homepage
     def fq_name_to_id(self, obj_type, fq_name):
@@ -1096,7 +981,7 @@ class VncApi(object):
             raise he
 
         return json.loads(content)['uuid']
-    # end fq_name_to_id
+    #end fq_name_to_id
 
     @check_homepage
     def id_to_fq_name(self, id):
@@ -1105,7 +990,7 @@ class VncApi(object):
         content = self._request_server(rest.OP_POST, uri, data=json_body)
 
         return json.loads(content)['fq_name']
-    # end id_to_fq_name
+    #end id_to_fq_name
 
     @check_homepage
     def id_to_fq_name_type(self, id):
@@ -1119,8 +1004,16 @@ class VncApi(object):
     # This is required only for helping ifmap-subscribers using rest publish
     @check_homepage
     def ifmap_to_id(self, ifmap_id):
-        return None
-    # end ifmap_to_id
+        json_body = json.dumps({'ifmap_id': ifmap_id})
+        uri = self._action_uri['ifmap-to-id']
+        try:
+            content = self._request_server(rest.OP_POST, uri, data=json_body)
+        except HttpError as he:
+            if he.status_code == 404:
+                return None
+
+        return json.loads(content)['uuid']
+    #end ifmap_to_id
 
     def obj_to_json(self, obj):
         return json.dumps(obj, default=self._obj_serializer_all)
@@ -1137,7 +1030,7 @@ class VncApi(object):
         content = self._request_server(rest.OP_POST, uri, data=json_body)
 
         return json.loads(content)['results']
-    # end fetch_records
+    #end fetch_records
 
     @check_homepage
     def restore_config(self, create, resource, json_body):
@@ -1155,7 +1048,7 @@ class VncApi(object):
             content = self._request_server(rest.OP_PUT, uri, data=json_body)
 
         return json.loads(content)
-    # end restore_config
+    #end restore_config
 
     @check_homepage
     def kv_store(self, key, value):
@@ -1165,7 +1058,7 @@ class VncApi(object):
                                 'value': value})
         uri = self._action_uri['useragent-keyvalue']
         self._request_server(rest.OP_POST, uri, data=json_body)
-    # end kv_store
+    #end kv_store
 
     @check_homepage
     def kv_retrieve(self, key=None):
@@ -1177,7 +1070,7 @@ class VncApi(object):
         content = self._request_server(rest.OP_POST, uri, data=json_body)
 
         return json.loads(content)['value']
-    # end kv_retrieve
+    #end kv_retrieve
 
     @check_homepage
     def kv_delete(self, key):
@@ -1186,20 +1079,17 @@ class VncApi(object):
                                 'key': key})
         uri = self._action_uri['useragent-keyvalue']
         self._request_server(rest.OP_POST, uri, data=json_body)
-    # end kv_delete
+    #end kv_delete
 
     # reserve block of IP address from a VN
     # expected format {"subnet" : "subnet_uuid", "count" : 4}
     @check_homepage
-    def virtual_network_ip_alloc(self, vnobj, count=1,
-                                 subnet=None, family=None):
-        json_body = json.dumps({'count': count,
-                                'subnet': subnet,
-                                'family': family})
+    def virtual_network_ip_alloc(self, vnobj, count=1, subnet=None, family=None):
+        json_body = json.dumps({'count': count, 'subnet': subnet, 'family':family})
         uri = self._action_uri['virtual-network-ip-alloc'] % vnobj.uuid
         content = self._request_server(rest.OP_POST, uri, data=json_body)
         return json.loads(content)['ip_addr']
-    # end virtual_network_ip_alloc
+    #end virtual_network_ip_alloc
 
     # free previously reserved block of IP address from a VN
     # Expected format "ip_addr" : ["2.1.1.239", "2.1.1.238"]
@@ -1209,7 +1099,7 @@ class VncApi(object):
         uri = self._action_uri['virtual-network-ip-free'] % vnobj.uuid
         rv = self._request_server(rest.OP_POST, uri, data=json_body)
         return rv
-    # end virtual_network_ip_free
+    #end virtual_network_ip_free
 
     # return no of ip instances from a given VN/Subnet
     # Expected format "subne_list" : ["subnet_uuid1", "subnet_uuid2"]
@@ -1219,18 +1109,18 @@ class VncApi(object):
         uri = self._action_uri['virtual-network-subnet-ip-count'] % vnobj.uuid
         rv = self._request_server(rest.OP_POST, uri, data=json_body)
         return rv
-    # end virtual_network_subnet_ip_count
+    #end virtual_network_subnet_ip_count
 
     def get_auth_token(self):
         self._headers = self._authenticate(headers=self._headers)
         return self._auth_token
 
-    # end get_auth_token
+    #end get_auth_token
 
     @check_homepage
     def resource_list(self, obj_type, parent_id=None, parent_fq_name=None,
                       back_ref_id=None, obj_uuids=None, fields=None,
-                      detail=False, count=False, filters=None, shared=False):
+                      detail=False, count=False, filters=None):
         if not obj_type:
             raise ResourceTypeUnknownError(obj_type)
 
@@ -1273,20 +1163,10 @@ class VncApi(object):
         query_params['detail'] = detail
 
         query_params['count'] = count
-        query_params['shared'] = shared
 
         if filters:
-            query_params['filters'] = ''
-            for key, value in filters.items():
-                if isinstance(value, list):
-                    query_params['filters'] += ','.join(
-                        '%s==%s' % (key, json.dumps(val)) for val in value)
-                else:
-                    query_params['filters'] += ('%s==%s' %
-                                                (key, json.dumps(value)))
-                query_params['filters'] += ','
-            # Remove last trailing comma
-            query_params['filters'] = query_params['filters'][:-1]
+            query_params['filters'] = ','.join(
+                '%s==%s' %(k,json.dumps(v)) for k,v in filters.items())
 
         if self._exclude_hrefs is not None:
             query_params['exclude_hrefs'] = True
@@ -1302,10 +1182,11 @@ class VncApi(object):
             content = self._request_server(rest.OP_POST,
                                            uri, json_body)
             response = json.loads(content)
-        else:  # GET /<collection>
+        else: # GET /<collection>
             try:
-                response = self._request_server(
-                        rest.OP_GET, obj_class.create_uri, data=query_params)
+                response = self._request_server(rest.OP_GET,
+                               obj_class.create_uri,
+                               data = query_params)
             except NoIdError:
                 # dont allow NoIdError propagate to user
                 return []
@@ -1313,22 +1194,22 @@ class VncApi(object):
         if not detail:
             return response
 
-        resource_dicts = response['%ss' % (obj_type)]
+        resource_dicts = response['%ss' %(obj_type)]
         resource_objs = []
         for resource_dict in resource_dicts:
-            obj_dict = resource_dict['%s' % (obj_type)]
+            obj_dict = resource_dict['%s' %(obj_type)]
             resource_obj = obj_class.from_dict(**obj_dict)
             resource_obj.clear_pending_updates()
             resource_obj.set_server_conn(self)
             resource_objs.append(resource_obj)
 
         return resource_objs
-    # end resource_list
+    #end resource_list
 
     def set_auth_token(self, token):
         """Park user token for forwarding to API server for RBAC."""
         self._headers['X-AUTH-TOKEN'] = token
-    # end set_auth_token
+    #end set_auth_token
 
     def set_user_roles(self, roles):
         """Park user roles for forwarding to API server for RBAC.
@@ -1336,7 +1217,7 @@ class VncApi(object):
         :param roles: list of roles
         """
         self._headers['X-API-ROLE'] = (',').join(roles)
-    # end set_user_roles
+    #end set_user_roles
 
     def set_exclude_hrefs(self):
         self._exclude_hrefs = True
@@ -1345,8 +1226,7 @@ class VncApi(object):
     @check_homepage
     def obj_perms(self, token, obj_uuid=None):
         """
-        validate user token. Optionally, check token authorization
-        for an object.
+        validate user token. Optionally, check token authorization for an object.
         rv {'token_info': <token-info>, 'permissions': 'RWX'}
         """
         self._headers['X-USER-TOKEN'] = token
@@ -1372,19 +1252,16 @@ class VncApi(object):
     # change object ownsership
     def chown(self, obj_uuid, owner):
         payload = {'uuid': obj_uuid, 'owner': owner}
-        content = self._request_server(
-                rest.OP_POST, self._action_uri['chown'],
-                data=json.dumps(payload))
+        content = self._request_server(rest.OP_POST,
+            self._action_uri['chown'], data=json.dumps(payload))
         return content
-    # end chown
+    #end chown
 
-    def chmod(self, obj_uuid, owner=None, owner_access=None,
-              share=None, global_access=None):
+    def chmod(self, obj_uuid, owner=None, owner_access=None, share=None, global_access=None):
         """
         owner: tenant UUID
         owner_access: octal permission for owner (int, 0-7)
-        share: list of tuple of <uuid:octal-perms>,
-               for example [(0ed5ea...700:7)]
+        share: list of tuple of <uuid:octal-perms>, for example [(0ed5ea...700:7)]
         global_access: octal permission for global access (int, 0-7)
         """
         payload = {'uuid': obj_uuid}
@@ -1393,13 +1270,11 @@ class VncApi(object):
         if owner_access is not None:
             payload['owner_access'] = owner_access
         if share is not None:
-            payload['share'] = [{'tenant': item[0], 'tenant_access': item[1]}
-                                for item in share]
+            payload['share'] = [{'tenant':item[0], 'tenant_access':item[1]} for item in share]
         if global_access is not None:
             payload['global_access'] = global_access
-        content = self._request_server(
-                rest.OP_POST, self._action_uri['chmod'],
-                data=json.dumps(payload))
+        content = self._request_server(rest.OP_POST,
+            self._action_uri['chmod'], data=json.dumps(payload))
         return content
 
     def set_multi_tenancy(self, enabled):
@@ -1413,34 +1288,7 @@ class VncApi(object):
             raise HttpError(400, 'Invalid AAA mode')
         url = self._action_uri['aaa-mode']
         data = {'aaa-mode': mode}
-        content = self._request_server(rest.OP_PUT, url, json.dumps(data))
+        content =  self._request_server(rest.OP_PUT, url, json.dumps(data))
         return json.loads(content)
 
-    def get_aaa_mode(self):
-        url = self._action_uri['aaa-mode']
-        rv = self._request_server(rest.OP_GET, url)
-        return rv
-
-    # associate a tag to an object
-    def set_tag(self, obj, tag_type, tag_value, is_global=False):
-        url = self._action_uri['set-tag-%s' % tag_type.lower()]
-        data = {
-            'obj_uuid': obj.get_uuid(),
-            'tag_value': tag_value,
-            'is_global': is_global
-        }
-        content = self._request_server(rest.OP_POST, url, json.dumps(data))
-        return json.loads(content)
-
-    # disassociate tag from an object
-    def unset_tag(self, obj, tag_type, tag_value, is_global=False):
-        url = self._action_uri['set-tag-%s' % tag_type.lower()]
-        data = {
-            'obj_uuid': obj.get_uuid(),
-            'tag_value': tag_value,
-            'is_global': is_global
-        }
-        content = self._request_server(rest.OP_DELETE, url, json.dumps(data))
-        return json.loads(content)
-
-# end class VncApi
+#end class VncApi

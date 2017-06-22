@@ -18,11 +18,15 @@ except:
 
 import cStringIO
 import uuid
+import netaddr
+from sys import getsizeof
+from itertools import chain
 import bottle
 from pysandesh import sandesh_base
 from pysandesh.sandesh_http import SandeshHttp
 from pysandesh.sandesh_uve import SandeshUVETypeMaps
 from pysandesh.util import UTCTimestampUsec, UTCTimestampUsecToString
+from pysandesh import util
 from pysandesh.gen_py.sandesh.constants import *
 
 
@@ -96,7 +100,7 @@ class UveSvcInstanceVMConfig(object):
     if oprot.__class__ == TBinaryProtocol.TBinaryProtocolAccelerated and self.thrift_spec is not None and fastbinary is not None:
       oprot.trans.write(fastbinary.encode_binary(self, (self.__class__, self.thrift_spec)))
       return 0
-    if oprot.writeStructBegin('UveSvcInstanceVMConfig') < 0: return -1
+    if oprot.writeStructBegin(self.__class__.__name__) < 0: return -1
     if self.uuid is not None:
       annotations = {}
       if oprot.writeFieldBegin('uuid', TType.STRING, 1, annotations) < 0: return -1
@@ -135,6 +139,16 @@ class UveSvcInstanceVMConfig(object):
       log_str.write(self.ha)
       log_str.write('  ')
     return log_str.getvalue()
+
+  def __sizeof__(self):
+    size = 0
+    if self.uuid is not None:
+      size += getsizeof(self.uuid)
+    if self.vr_name is not None:
+      size += getsizeof(self.vr_name)
+    if self.ha is not None:
+      size += getsizeof(self.ha)
+    return size
 
   def __repr__(self):
     L = ['%s=%r' % (key, value)
@@ -252,7 +266,7 @@ class UveSvcInstanceConfig(object):
     if oprot.__class__ == TBinaryProtocol.TBinaryProtocolAccelerated and self.thrift_spec is not None and fastbinary is not None:
       oprot.trans.write(fastbinary.encode_binary(self, (self.__class__, self.thrift_spec)))
       return 0
-    if oprot.writeStructBegin('UveSvcInstanceConfig') < 0: return -1
+    if oprot.writeStructBegin(self.__class__.__name__) < 0: return -1
     if self.name is not None:
       annotations = {}
       if self._table is None or self._table is '': return -1
@@ -333,6 +347,23 @@ class UveSvcInstanceConfig(object):
       log_str.write('  ')
     return log_str.getvalue()
 
+  def __sizeof__(self):
+    size = 0
+    if self.name is not None:
+      size += getsizeof(self.name)
+    if self.deleted is not None:
+      size += getsizeof(self.deleted)
+    if self.st_name is not None:
+      size += getsizeof(self.st_name)
+    if self.status is not None:
+      size += getsizeof(self.status)
+    if self.create_ts is not None:
+      size += getsizeof(self.create_ts)
+    if self.vm_list is not None:
+      size += getsizeof(self.vm_list)
+      size += sum(map(getsizeof, self.vm_list))
+    return size
+
   def __repr__(self):
     L = ['%s=%r' % (key, value)
       for key, value in self.__dict__.iteritems()]
@@ -386,7 +417,7 @@ class UveSvcInstanceConfigTrace(sandesh_base.SandeshUVE):
     if trace:
       log_str.write(str(self._timestamp))
       log_str.write(' ')
-    log_str.write('UveSvcInstanceConfigTrace: ')                                                                                                                                                                         
+    log_str.write(self.__class__.__name__ + ': ')
     if self.data is not None:
       log_str.write('data = ')
       log_str.write('<<  ')
@@ -429,7 +460,7 @@ class UveSvcInstanceConfigTrace(sandesh_base.SandeshUVE):
     if oprot.__class__ == TBinaryProtocol.TBinaryProtocolAccelerated and self.thrift_spec is not None and fastbinary is not None:
       oprot.trans.write(fastbinary.encode_binary(self, (self.__class__, self.thrift_spec)))
       return 0
-    if oprot.writeSandeshBegin('UveSvcInstanceConfigTrace') < 0: return -1
+    if oprot.writeSandeshBegin(self.__class__.__name__) < 0: return -1
     if self.data is not None:
       annotations = {}
       if oprot.writeFieldBegin('data', TType.STRUCT, 1, annotations) < 0: return -1
@@ -450,6 +481,12 @@ class UveSvcInstanceConfigTrace(sandesh_base.SandeshUVE):
       return False
     return True
 
+  def __sizeof__(self):
+    size = 0
+    if self.data is not None:
+      size += getsizeof(self.data)
+    return size
+
   def __repr__(self):
     L = ['%s=%r' % (key, value)
       for key, value in self.__dict__.iteritems()]
@@ -467,18 +504,9 @@ _SANDESH_REQUEST_LIST = [
 
 
 _SANDESH_UVE_LIST = [
-'UveSvcInstanceConfigTrace',
-]
-
-
-_SANDESH_UVE_DATA_LIST = [
-'UveSvcInstanceConfig',
+(UveSvcInstanceConfigTrace, UveSvcInstanceConfig),
 ]
 
 
 _SANDESH_ALARM_LIST = [
-]
-
-
-_SANDESH_ALARM_DATA_LIST = [
 ]

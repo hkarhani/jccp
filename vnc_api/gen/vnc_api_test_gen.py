@@ -19,9 +19,9 @@ class VncApiTestGen(testtools.TestCase, fixtures.TestWithFixtures):
         self.useFixture(InstanceIpTestFixtureGen(self._vnc_lib))
     #end test_instance_ip_crud
 
-    def test_network_policy_crud(self):
-        self.useFixture(NetworkPolicyTestFixtureGen(self._vnc_lib))
-    #end test_network_policy_crud
+    def test_floating_ip_pool_crud(self):
+        self.useFixture(FloatingIpPoolTestFixtureGen(self._vnc_lib))
+    #end test_floating_ip_pool_crud
 
     def test_loadbalancer_pool_crud(self):
         self.useFixture(LoadbalancerPoolTestFixtureGen(self._vnc_lib))
@@ -35,13 +35,25 @@ class VncApiTestGen(testtools.TestCase, fixtures.TestWithFixtures):
         self.useFixture(RouteTargetTestFixtureGen(self._vnc_lib))
     #end test_route_target_crud
 
+    def test_alarm_crud(self):
+        self.useFixture(AlarmTestFixtureGen(self._vnc_lib))
+    #end test_alarm_crud
+
+    def test_discovery_service_assignment_crud(self):
+        self.useFixture(DiscoveryServiceAssignmentTestFixtureGen(self._vnc_lib))
+    #end test_discovery_service_assignment_crud
+
     def test_floating_ip_crud(self):
         self.useFixture(FloatingIpTestFixtureGen(self._vnc_lib))
     #end test_floating_ip_crud
 
-    def test_floating_ip_pool_crud(self):
-        self.useFixture(FloatingIpPoolTestFixtureGen(self._vnc_lib))
-    #end test_floating_ip_pool_crud
+    def test_alias_ip_crud(self):
+        self.useFixture(AliasIpTestFixtureGen(self._vnc_lib))
+    #end test_alias_ip_crud
+
+    def test_network_policy_crud(self):
+        self.useFixture(NetworkPolicyTestFixtureGen(self._vnc_lib))
+    #end test_network_policy_crud
 
     def test_physical_router_crud(self):
         self.useFixture(PhysicalRouterTestFixtureGen(self._vnc_lib))
@@ -50,6 +62,10 @@ class VncApiTestGen(testtools.TestCase, fixtures.TestWithFixtures):
     def test_bgp_router_crud(self):
         self.useFixture(BgpRouterTestFixtureGen(self._vnc_lib))
     #end test_bgp_router_crud
+
+    def test_api_access_list_crud(self):
+        self.useFixture(ApiAccessListTestFixtureGen(self._vnc_lib))
+    #end test_api_access_list_crud
 
     def test_virtual_router_crud(self):
         self.useFixture(VirtualRouterTestFixtureGen(self._vnc_lib))
@@ -67,17 +83,21 @@ class VncApiTestGen(testtools.TestCase, fixtures.TestWithFixtures):
         self.useFixture(ServiceApplianceTestFixtureGen(self._vnc_lib))
     #end test_service_appliance_crud
 
-    def test_service_instance_crud(self):
-        self.useFixture(ServiceInstanceTestFixtureGen(self._vnc_lib))
-    #end test_service_instance_crud
+    def test_routing_policy_crud(self):
+        self.useFixture(RoutingPolicyTestFixtureGen(self._vnc_lib))
+    #end test_routing_policy_crud
 
     def test_namespace_crud(self):
         self.useFixture(NamespaceTestFixtureGen(self._vnc_lib))
     #end test_namespace_crud
 
-    def test_logical_interface_crud(self):
-        self.useFixture(LogicalInterfaceTestFixtureGen(self._vnc_lib))
-    #end test_logical_interface_crud
+    def test_forwarding_class_crud(self):
+        self.useFixture(ForwardingClassTestFixtureGen(self._vnc_lib))
+    #end test_forwarding_class_crud
+
+    def test_service_instance_crud(self):
+        self.useFixture(ServiceInstanceTestFixtureGen(self._vnc_lib))
+    #end test_service_instance_crud
 
     def test_route_table_crud(self):
         self.useFixture(RouteTableTestFixtureGen(self._vnc_lib))
@@ -90,6 +110,14 @@ class VncApiTestGen(testtools.TestCase, fixtures.TestWithFixtures):
     def test_access_control_list_crud(self):
         self.useFixture(AccessControlListTestFixtureGen(self._vnc_lib))
     #end test_access_control_list_crud
+
+    def test_bgp_as_a_service_crud(self):
+        self.useFixture(BgpAsAServiceTestFixtureGen(self._vnc_lib))
+    #end test_bgp_as_a_service_crud
+
+    def test_port_tuple_crud(self):
+        self.useFixture(PortTupleTestFixtureGen(self._vnc_lib))
+    #end test_port_tuple_crud
 
     def test_analytics_node_crud(self):
         self.useFixture(AnalyticsNodeTestFixtureGen(self._vnc_lib))
@@ -127,6 +155,14 @@ class VncApiTestGen(testtools.TestCase, fixtures.TestWithFixtures):
         self.useFixture(ServiceTemplateTestFixtureGen(self._vnc_lib))
     #end test_service_template_crud
 
+    def test_dsa_rule_crud(self):
+        self.useFixture(DsaRuleTestFixtureGen(self._vnc_lib))
+    #end test_dsa_rule_crud
+
+    def test_global_qos_config_crud(self):
+        self.useFixture(GlobalQosConfigTestFixtureGen(self._vnc_lib))
+    #end test_global_qos_config_crud
+
     def test_virtual_ip_crud(self):
         self.useFixture(VirtualIpTestFixtureGen(self._vnc_lib))
     #end test_virtual_ip_crud
@@ -138,6 +174,14 @@ class VncApiTestGen(testtools.TestCase, fixtures.TestWithFixtures):
     def test_security_group_crud(self):
         self.useFixture(SecurityGroupTestFixtureGen(self._vnc_lib))
     #end test_security_group_crud
+
+    def test_service_health_check_crud(self):
+        self.useFixture(ServiceHealthCheckTestFixtureGen(self._vnc_lib))
+    #end test_service_health_check_crud
+
+    def test_qos_config_crud(self):
+        self.useFixture(QosConfigTestFixtureGen(self._vnc_lib))
+    #end test_qos_config_crud
 
     def test_provider_attachment_crud(self):
         self.useFixture(ProviderAttachmentTestFixtureGen(self._vnc_lib))
@@ -151,6 +195,10 @@ class VncApiTestGen(testtools.TestCase, fixtures.TestWithFixtures):
         self.useFixture(LoadbalancerHealthmonitorTestFixtureGen(self._vnc_lib))
     #end test_loadbalancer_healthmonitor_crud
 
+    def test_loadbalancer_listener_crud(self):
+        self.useFixture(LoadbalancerListenerTestFixtureGen(self._vnc_lib))
+    #end test_loadbalancer_listener_crud
+
     def test_virtual_network_crud(self):
         self.useFixture(VirtualNetworkTestFixtureGen(self._vnc_lib))
     #end test_virtual_network_crud
@@ -159,9 +207,13 @@ class VncApiTestGen(testtools.TestCase, fixtures.TestWithFixtures):
         self.useFixture(ProjectTestFixtureGen(self._vnc_lib))
     #end test_project_crud
 
-    def test_qos_forwarding_class_crud(self):
-        self.useFixture(QosForwardingClassTestFixtureGen(self._vnc_lib))
-    #end test_qos_forwarding_class_crud
+    def test_logical_interface_crud(self):
+        self.useFixture(LogicalInterfaceTestFixtureGen(self._vnc_lib))
+    #end test_logical_interface_crud
+
+    def test_loadbalancer_crud(self):
+        self.useFixture(LoadbalancerTestFixtureGen(self._vnc_lib))
+    #end test_loadbalancer_crud
 
     def test_database_node_crud(self):
         self.useFixture(DatabaseNodeTestFixtureGen(self._vnc_lib))
@@ -171,9 +223,17 @@ class VncApiTestGen(testtools.TestCase, fixtures.TestWithFixtures):
         self.useFixture(RoutingInstanceTestFixtureGen(self._vnc_lib))
     #end test_routing_instance_crud
 
+    def test_alias_ip_pool_crud(self):
+        self.useFixture(AliasIpPoolTestFixtureGen(self._vnc_lib))
+    #end test_alias_ip_pool_crud
+
     def test_network_ipam_crud(self):
         self.useFixture(NetworkIpamTestFixtureGen(self._vnc_lib))
     #end test_network_ipam_crud
+
+    def test_route_aggregate_crud(self):
+        self.useFixture(RouteAggregateTestFixtureGen(self._vnc_lib))
+    #end test_route_aggregate_crud
 
     def test_logical_router_crud(self):
         self.useFixture(LogicalRouterTestFixtureGen(self._vnc_lib))

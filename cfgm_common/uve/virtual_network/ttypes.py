@@ -18,11 +18,15 @@ except:
 
 import cStringIO
 import uuid
+import netaddr
+from sys import getsizeof
+from itertools import chain
 import bottle
 from pysandesh import sandesh_base
 from pysandesh.sandesh_http import SandeshHttp
 from pysandesh.sandesh_uve import SandeshUVETypeMaps
 from pysandesh.util import UTCTimestampUsec, UTCTimestampUsecToString
+from pysandesh import util
 from pysandesh.gen_py.sandesh.constants import *
 
 
@@ -152,7 +156,7 @@ class UveVirtualNetworkConfig(object):
     if oprot.__class__ == TBinaryProtocol.TBinaryProtocolAccelerated and self.thrift_spec is not None and fastbinary is not None:
       oprot.trans.write(fastbinary.encode_binary(self, (self.__class__, self.thrift_spec)))
       return 0
-    if oprot.writeStructBegin('UveVirtualNetworkConfig') < 0: return -1
+    if oprot.writeStructBegin(self.__class__.__name__) < 0: return -1
     if self.name is not None:
       annotations = {}
       if self._table is None or self._table is '': return -1
@@ -253,6 +257,25 @@ class UveVirtualNetworkConfig(object):
       log_str.write(str(self.total_acl_rules))
       log_str.write('  ')
     return log_str.getvalue()
+
+  def __sizeof__(self):
+    size = 0
+    if self.name is not None:
+      size += getsizeof(self.name)
+    if self.deleted is not None:
+      size += getsizeof(self.deleted)
+    if self.connected_networks is not None:
+      size += getsizeof(self.connected_networks)
+      size += sum(map(getsizeof, self.connected_networks))
+    if self.partially_connected_networks is not None:
+      size += getsizeof(self.partially_connected_networks)
+      size += sum(map(getsizeof, self.partially_connected_networks))
+    if self.routing_instance_list is not None:
+      size += getsizeof(self.routing_instance_list)
+      size += sum(map(getsizeof, self.routing_instance_list))
+    if self.total_acl_rules is not None:
+      size += getsizeof(self.total_acl_rules)
+    return size
 
   def __repr__(self):
     L = ['%s=%r' % (key, value)
@@ -403,7 +426,7 @@ class UveServiceChainData(object):
     if oprot.__class__ == TBinaryProtocol.TBinaryProtocolAccelerated and self.thrift_spec is not None and fastbinary is not None:
       oprot.trans.write(fastbinary.encode_binary(self, (self.__class__, self.thrift_spec)))
       return 0
-    if oprot.writeStructBegin('UveServiceChainData') < 0: return -1
+    if oprot.writeStructBegin(self.__class__.__name__) < 0: return -1
     if self.name is not None:
       annotations = {}
       if self._table is None or self._table is '': return -1
@@ -511,6 +534,29 @@ class UveServiceChainData(object):
       log_str.write('  ')
     return log_str.getvalue()
 
+  def __sizeof__(self):
+    size = 0
+    if self.name is not None:
+      size += getsizeof(self.name)
+    if self.deleted is not None:
+      size += getsizeof(self.deleted)
+    if self.source_virtual_network is not None:
+      size += getsizeof(self.source_virtual_network)
+    if self.destination_virtual_network is not None:
+      size += getsizeof(self.destination_virtual_network)
+    if self.source_ports is not None:
+      size += getsizeof(self.source_ports)
+    if self.destination_ports is not None:
+      size += getsizeof(self.destination_ports)
+    if self.protocol is not None:
+      size += getsizeof(self.protocol)
+    if self.direction is not None:
+      size += getsizeof(self.direction)
+    if self.services is not None:
+      size += getsizeof(self.services)
+      size += sum(map(getsizeof, self.services))
+    return size
+
   def __repr__(self):
     L = ['%s=%r' % (key, value)
       for key, value in self.__dict__.iteritems()]
@@ -564,7 +610,7 @@ class UveVirtualNetworkConfigTrace(sandesh_base.SandeshUVE):
     if trace:
       log_str.write(str(self._timestamp))
       log_str.write(' ')
-    log_str.write('UveVirtualNetworkConfigTrace: ')                                                                                                                                                                         
+    log_str.write(self.__class__.__name__ + ': ')
     if self.data is not None:
       log_str.write('data = ')
       log_str.write('<<  ')
@@ -607,7 +653,7 @@ class UveVirtualNetworkConfigTrace(sandesh_base.SandeshUVE):
     if oprot.__class__ == TBinaryProtocol.TBinaryProtocolAccelerated and self.thrift_spec is not None and fastbinary is not None:
       oprot.trans.write(fastbinary.encode_binary(self, (self.__class__, self.thrift_spec)))
       return 0
-    if oprot.writeSandeshBegin('UveVirtualNetworkConfigTrace') < 0: return -1
+    if oprot.writeSandeshBegin(self.__class__.__name__) < 0: return -1
     if self.data is not None:
       annotations = {}
       if oprot.writeFieldBegin('data', TType.STRUCT, 1, annotations) < 0: return -1
@@ -627,6 +673,12 @@ class UveVirtualNetworkConfigTrace(sandesh_base.SandeshUVE):
     if self.data != other.data:
       return False
     return True
+
+  def __sizeof__(self):
+    size = 0
+    if self.data is not None:
+      size += getsizeof(self.data)
+    return size
 
   def __repr__(self):
     L = ['%s=%r' % (key, value)
@@ -687,7 +739,7 @@ class UveServiceChain(sandesh_base.SandeshUVE):
     if trace:
       log_str.write(str(self._timestamp))
       log_str.write(' ')
-    log_str.write('UveServiceChain: ')                                                                                                                                                                         
+    log_str.write(self.__class__.__name__ + ': ')
     if self.data is not None:
       log_str.write('data = ')
       log_str.write('<<  ')
@@ -730,7 +782,7 @@ class UveServiceChain(sandesh_base.SandeshUVE):
     if oprot.__class__ == TBinaryProtocol.TBinaryProtocolAccelerated and self.thrift_spec is not None and fastbinary is not None:
       oprot.trans.write(fastbinary.encode_binary(self, (self.__class__, self.thrift_spec)))
       return 0
-    if oprot.writeSandeshBegin('UveServiceChain') < 0: return -1
+    if oprot.writeSandeshBegin(self.__class__.__name__) < 0: return -1
     if self.data is not None:
       annotations = {}
       if oprot.writeFieldBegin('data', TType.STRUCT, 1, annotations) < 0: return -1
@@ -751,6 +803,12 @@ class UveServiceChain(sandesh_base.SandeshUVE):
       return False
     return True
 
+  def __sizeof__(self):
+    size = 0
+    if self.data is not None:
+      size += getsizeof(self.data)
+    return size
+
   def __repr__(self):
     L = ['%s=%r' % (key, value)
       for key, value in self.__dict__.iteritems()]
@@ -768,20 +826,10 @@ _SANDESH_REQUEST_LIST = [
 
 
 _SANDESH_UVE_LIST = [
-'UveVirtualNetworkConfigTrace',
-'UveServiceChain',
-]
-
-
-_SANDESH_UVE_DATA_LIST = [
-'UveVirtualNetworkConfig',
-'UveServiceChainData',
+(UveVirtualNetworkConfigTrace, UveVirtualNetworkConfig),
+(UveServiceChain, UveServiceChainData),
 ]
 
 
 _SANDESH_ALARM_LIST = [
-]
-
-
-_SANDESH_ALARM_DATA_LIST = [
 ]

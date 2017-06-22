@@ -18,11 +18,15 @@ except:
 
 import cStringIO
 import uuid
+import netaddr
+from sys import getsizeof
+from itertools import chain
 import bottle
 from pysandesh import sandesh_base
 from pysandesh.sandesh_http import SandeshHttp
 from pysandesh.sandesh_uve import SandeshUVETypeMaps
 from pysandesh.util import UTCTimestampUsec, UTCTimestampUsecToString
+from pysandesh import util
 from pysandesh.gen_py.sandesh.constants import *
 
 
@@ -114,7 +118,7 @@ class VmInterfaceConfig(object):
     if oprot.__class__ == TBinaryProtocol.TBinaryProtocolAccelerated and self.thrift_spec is not None and fastbinary is not None:
       oprot.trans.write(fastbinary.encode_binary(self, (self.__class__, self.thrift_spec)))
       return 0
-    if oprot.writeStructBegin('VmInterfaceConfig') < 0: return -1
+    if oprot.writeStructBegin(self.__class__.__name__) < 0: return -1
     if self.name is not None:
       annotations = {}
       if oprot.writeFieldBegin('name', TType.STRING, 1, annotations) < 0: return -1
@@ -172,6 +176,19 @@ class VmInterfaceConfig(object):
       log_str.write(' ]')
       log_str.write('  ')
     return log_str.getvalue()
+
+  def __sizeof__(self):
+    size = 0
+    if self.name is not None:
+      size += getsizeof(self.name)
+    if self.ip_address is not None:
+      size += getsizeof(self.ip_address)
+    if self.virtual_network is not None:
+      size += getsizeof(self.virtual_network)
+    if self.floating_ips is not None:
+      size += getsizeof(self.floating_ips)
+      size += sum(map(getsizeof, self.floating_ips))
+    return size
 
   def __repr__(self):
     L = ['%s=%r' % (key, value)
@@ -287,7 +304,7 @@ class UveVirtualMachineConfig(object):
     if oprot.__class__ == TBinaryProtocol.TBinaryProtocolAccelerated and self.thrift_spec is not None and fastbinary is not None:
       oprot.trans.write(fastbinary.encode_binary(self, (self.__class__, self.thrift_spec)))
       return 0
-    if oprot.writeStructBegin('UveVirtualMachineConfig') < 0: return -1
+    if oprot.writeStructBegin(self.__class__.__name__) < 0: return -1
     if self.name is not None:
       annotations = {}
       if self._table is None or self._table is '': return -1
@@ -368,6 +385,22 @@ class UveVirtualMachineConfig(object):
       log_str.write('  ')
     return log_str.getvalue()
 
+  def __sizeof__(self):
+    size = 0
+    if self.name is not None:
+      size += getsizeof(self.name)
+    if self.deleted is not None:
+      size += getsizeof(self.deleted)
+    if self.attached_groups is not None:
+      size += getsizeof(self.attached_groups)
+      size += sum(map(getsizeof, self.attached_groups))
+    if self.interface_list is not None:
+      size += getsizeof(self.interface_list)
+      size += sum(map(getsizeof, self.interface_list))
+    if self.vrouter is not None:
+      size += getsizeof(self.vrouter)
+    return size
+
   def __repr__(self):
     L = ['%s=%r' % (key, value)
       for key, value in self.__dict__.iteritems()]
@@ -419,7 +452,7 @@ class UveVirtualMachineConfigTrace(sandesh_base.SandeshUVE):
     if trace:
       log_str.write(str(self._timestamp))
       log_str.write(' ')
-    log_str.write('UveVirtualMachineConfigTrace: ')                                                                                                                                                                         
+    log_str.write(self.__class__.__name__ + ': ')
     if self.data is not None:
       log_str.write('data = ')
       log_str.write('<<  ')
@@ -462,7 +495,7 @@ class UveVirtualMachineConfigTrace(sandesh_base.SandeshUVE):
     if oprot.__class__ == TBinaryProtocol.TBinaryProtocolAccelerated and self.thrift_spec is not None and fastbinary is not None:
       oprot.trans.write(fastbinary.encode_binary(self, (self.__class__, self.thrift_spec)))
       return 0
-    if oprot.writeSandeshBegin('UveVirtualMachineConfigTrace') < 0: return -1
+    if oprot.writeSandeshBegin(self.__class__.__name__) < 0: return -1
     if self.data is not None:
       annotations = {}
       if oprot.writeFieldBegin('data', TType.STRUCT, 1, annotations) < 0: return -1
@@ -483,6 +516,12 @@ class UveVirtualMachineConfigTrace(sandesh_base.SandeshUVE):
       return False
     return True
 
+  def __sizeof__(self):
+    size = 0
+    if self.data is not None:
+      size += getsizeof(self.data)
+    return size
+
   def __repr__(self):
     L = ['%s=%r' % (key, value)
       for key, value in self.__dict__.iteritems()]
@@ -500,18 +539,9 @@ _SANDESH_REQUEST_LIST = [
 
 
 _SANDESH_UVE_LIST = [
-'UveVirtualMachineConfigTrace',
-]
-
-
-_SANDESH_UVE_DATA_LIST = [
-'UveVirtualMachineConfig',
+(UveVirtualMachineConfigTrace, UveVirtualMachineConfig),
 ]
 
 
 _SANDESH_ALARM_LIST = [
-]
-
-
-_SANDESH_ALARM_DATA_LIST = [
 ]

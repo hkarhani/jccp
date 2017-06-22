@@ -12,11 +12,14 @@ _SVC_VN_RIGHT = "svc-vn-right"
 _VN_MGMT_SUBNET_CIDR = '10.250.1.0/24'
 _VN_LEFT_SUBNET_CIDR = '10.250.2.0/24'
 _VN_RIGHT_SUBNET_CIDR = '10.250.3.0/24'
+_VN_MGMT_SUBNET_CIDR6 = 'fd12:3456:789a:1::/64'
+_VN_LEFT_SUBNET_CIDR6 = 'fd12:3456:789a:2::/64'
+_VN_RIGHT_SUBNET_CIDR6 = 'fd12:3456:789a:3::/64'
 
 _VN_SNAT_PREFIX_NAME = 'snat-si-left'
 _VN_SNAT_SUBNET_CIDR = '100.64.0.0/29'
 
-_CHECK_SVC_VM_HEALTH_INTERVAL = 30
+_CHECK_SVC_VM_HEALTH_INTERVAL = 60
 
 _VM_INSTANCE_TYPE = 'virtual-machine'
 _NETNS_INSTANCE_TYPE = 'network-namespace'
@@ -70,6 +73,15 @@ def get_left_vn_subnet():
 
 def get_right_vn_subnet():
     return _VN_RIGHT_SUBNET_CIDR
+
+def get_management_vn_subnet6():
+    return _VN_MGMT_SUBNET_CIDR6
+
+def get_left_vn_subnet6():
+    return _VN_LEFT_SUBNET_CIDR6
+
+def get_right_vn_subnet6():
+    return _VN_RIGHT_SUBNET_CIDR6
 
 def get_snat_left_vn_prefix():
     return _VN_SNAT_PREFIX_NAME

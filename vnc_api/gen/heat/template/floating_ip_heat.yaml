@@ -1,0 +1,114 @@
+heat_template_version: 2015-04-30
+
+description: >
+  HOT template to create a FloatingIp:
+
+parameters:
+  name:
+    type: string
+    description: name for the FloatingIp
+    # required: optional
+  fq_name:
+    type: string
+    description: fq_name for the FloatingIp
+    # required: optional
+  floating_ip_address_family:
+    type: string
+    description: Ip address family of the floating ip, IpV4 or IpV6
+    # operations: CRUD
+    # required: optional
+  floating_ip_port_mappings_port_mappings_src_port:
+    type: number
+    description: src_port for the FloatingIp
+    # operations: CRUD
+    # required: optional
+  floating_ip_port_mappings_port_mappings_dst_port:
+    type: number
+    description: dst_port for the FloatingIp
+    # operations: CRUD
+    # required: optional
+  floating_ip_is_virtual_ip:
+    type: boolean
+    description: This floating ip is used as virtual ip (VIP) in case of LBaaS.
+    # operations: CRUD
+    # required: optional
+  floating_ip_address:
+    type: string
+    description: Floating ip address.
+    # operations: CR
+    # required: required
+  floating_ip_port_mappings_enable:
+    type: boolean
+    description: If it is false, floating-ip Nat is done for all Ports. If it is true, floating-ip Nat is done to the
+    # operations: CRUD
+    # required: optional
+  display_name:
+    type: string
+    description: Display name user configured string(name) that can be updated any time. Used as openstack name.
+    # operations: CRUD
+    # required: optional
+  annotations_key_value_pair_key:
+    type: string
+    description: key for the FloatingIp
+    # operations: CRUD
+    # required: optional
+  annotations_key_value_pair_value:
+    type: string
+    description: value for the FloatingIp
+    # operations: CRUD
+    # required: optional
+  floating_ip_fixed_ip_address:
+    type: string
+    description: This floating is tracking given fixed ip of the interface. The given fixed ip is used in 1:1 NAT.
+    # operations: CRUD
+    # required: optional
+  project_refs:
+    type: string
+    description: Reference to project is which this floating ip was allocated.
+    # required: optional
+  virtual_machine_interface_refs:
+    type: string
+    description: Reference to virtual machine interface to which this floating ip is attached.
+    # required: optional
+  floating_ip_pool:
+    type: string
+    description: floating_ip_pool for the FloatingIp
+    # required: optional
+  instance_ip:
+    type: string
+    description: instance_ip for the FloatingIp
+    # required: optional
+
+resources:
+  template_FloatingIp:
+    type: OS::ContrailV2::FloatingIp
+    properties:
+      name: { get_param: name }
+      fq_name: { get_param: fq_name }
+      floating_ip_address_family: { get_param: floating_ip_address_family }
+      floating_ip_port_mappings:
+        {
+          floating_ip_port_mappings_port_mappings:
+            [{
+              floating_ip_port_mappings_port_mappings_src_port: { get_param: floating_ip_port_mappings_port_mappings_src_port },
+              floating_ip_port_mappings_port_mappings_dst_port: { get_param: floating_ip_port_mappings_port_mappings_dst_port },
+            }],
+        }
+      floating_ip_is_virtual_ip: { get_param: floating_ip_is_virtual_ip }
+      floating_ip_address: { get_param: floating_ip_address }
+      floating_ip_port_mappings_enable: { get_param: floating_ip_port_mappings_enable }
+      display_name: { get_param: display_name }
+      annotations:
+        {
+          annotations_key_value_pair:
+            [{
+              annotations_key_value_pair_key: { get_param: annotations_key_value_pair_key },
+              annotations_key_value_pair_value: { get_param: annotations_key_value_pair_value },
+            }],
+        }
+      floating_ip_fixed_ip_address: { get_param: floating_ip_fixed_ip_address }
+      project_refs: [{ get_param: project_refs }]
+      virtual_machine_interface_refs: [{ get_param: virtual_machine_interface_refs }]
+      floating_ip_pool: { get_param: floating_ip_pool }
+      instance_ip: { get_param: instance_ip }
+

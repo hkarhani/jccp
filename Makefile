@@ -2,10 +2,11 @@ build:
 	docker build -t twofiveone/jccp .
 
 run: stop rm
-	docker run --name jccp -d -p 8888:8888 twofiveone/jccp
+	mkdir -p notebooks
+	docker run --name jccp -v notebooks:/notebooks -d -p 8888:8888 twofiveone/jccp
 
-bash: stop run
-	docker exec -it jccp bash
+shell: stop run
+	docker exec -it jccp sh
 
 rm:
 	docker rm jccp || true
