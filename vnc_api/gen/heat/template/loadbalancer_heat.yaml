@@ -1,0 +1,111 @@
+heat_template_version: 2015-04-30
+
+description: >
+  HOT template to create a Loadbalancer:
+
+parameters:
+  name:
+    type: string
+    description: name for the Loadbalancer
+    # required: optional
+  fq_name:
+    type: string
+    description: fq_name for the Loadbalancer
+    # required: optional
+  display_name:
+    type: string
+    description: Display name user configured string(name) that can be updated any time. Used as openstack name.
+    # operations: CRUD
+    # required: optional
+  loadbalancer_properties_status:
+    type: string
+    description: Operational status of the load balancer updated by system.
+    # operations: CRUD
+    # required: optional
+  loadbalancer_properties_provisioning_status:
+    type: string
+    description: Provisioning  status of the load balancer updated by system.
+    # operations: CRUD
+    # required: optional
+  loadbalancer_properties_operating_status:
+    type: string
+    description: Operational status of the load balancer updated by system.
+    # operations: CRUD
+    # required: optional
+  loadbalancer_properties_vip_subnet_id:
+    type: string
+    description: Subnet UUID of the subnet of VIP, representing virtual network.
+    # operations: CRUD
+    # required: required
+  loadbalancer_properties_vip_address:
+    type: string
+    description: Virtual ip for this LBaaS
+    # operations: CRUD
+    # required: optional
+  loadbalancer_properties_admin_state:
+    type: boolean
+    description: Administrative up or down
+    # operations: CRUD
+    # required: optional
+  loadbalancer_provider:
+    type: string
+    description: Provider field selects backend provider of the LBaaS, Cloudadmin could offer different levels of
+    # operations: CR
+    # required: optional
+  annotations_key_value_pair_key:
+    type: string
+    description: key for the Loadbalancer
+    # operations: CRUD
+    # required: optional
+  annotations_key_value_pair_value:
+    type: string
+    description: value for the Loadbalancer
+    # operations: CRUD
+    # required: optional
+  service_instance_refs:
+    type: string
+    description: Reference to the service instance, created automatically by the system.
+    # required: optional
+  virtual_machine_interface_refs:
+    type: string
+    description: Reference to the virtual machine interface for VIP, created automatically by the system.
+    # required: optional
+  service_appliance_set_refs:
+    type: string
+    description: service_appliance_set_refs for the Loadbalancer
+    # required: optional
+  project:
+    type: string
+    description: project for the Loadbalancer
+    # required: optional
+
+resources:
+  template_Loadbalancer:
+    type: OS::ContrailV2::Loadbalancer
+    properties:
+      name: { get_param: name }
+      fq_name: { get_param: fq_name }
+      display_name: { get_param: display_name }
+      loadbalancer_properties:
+        {
+          loadbalancer_properties_status: { get_param: loadbalancer_properties_status },
+          loadbalancer_properties_provisioning_status: { get_param: loadbalancer_properties_provisioning_status },
+          loadbalancer_properties_operating_status: { get_param: loadbalancer_properties_operating_status },
+          loadbalancer_properties_vip_subnet_id: { get_param: loadbalancer_properties_vip_subnet_id },
+          loadbalancer_properties_vip_address: { get_param: loadbalancer_properties_vip_address },
+          loadbalancer_properties_admin_state: { get_param: loadbalancer_properties_admin_state },
+        }
+      loadbalancer_provider: { get_param: loadbalancer_provider }
+      annotations:
+        {
+          annotations_key_value_pair:
+            [{
+              annotations_key_value_pair_key: { get_param: annotations_key_value_pair_key },
+              annotations_key_value_pair_value: { get_param: annotations_key_value_pair_value },
+            }],
+        }
+      service_instance_refs: [{ get_param: service_instance_refs }]
+      virtual_machine_interface_refs: [{ get_param: virtual_machine_interface_refs }]
+      service_appliance_set_refs: [{ get_param: service_appliance_set_refs }]
+      project: { get_param: project }
+

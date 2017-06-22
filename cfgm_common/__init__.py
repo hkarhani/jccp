@@ -2,8 +2,8 @@
 # Copyright (c) 2013 Juniper Networks, Inc. All rights reserved.
 #
 
-import sys
 import re
+import sys
 
 IP_FABRIC_VN_FQ_NAME = ['default-domain', 'default-project', 'ip-fabric']
 IP_FABRIC_RI_FQ_NAME = IP_FABRIC_VN_FQ_NAME + ['__default__']
@@ -14,6 +14,22 @@ SG_NO_RULE_FQ_NAME = ['default-domain', 'default-project', SG_NO_RULE_NAME]
 
 BGP_RTGT_MIN_ID = 8000000
 SGID_MIN_ALLOC = 8000000
+
+PERMS_NONE = 0
+PERMS_X = 1
+PERMS_W = 2
+PERMS_R = 4
+PERMS_WX = 3
+PERMS_RX = 5
+PERMS_RW = 6
+PERMS_RWX = 7
+
+AAA_MODE_DEFAULT_VALUE = 'cloud-admin'
+AAA_MODE_VALID_VALUES = ['no-auth', 'cloud-admin', 'rbac']
+CLOUD_ADMIN_ROLE = 'admin'
+GLOBAL_READ_ONLY_ROLE = None
+PERMS2_VALID_SHARE_TYPES = ['tenant', 'domain']
+DOMAIN_SHARING_PERMS = PERMS_RW
 
 def obj_to_json(obj):
     return dict((k, v) for k, v in obj.__dict__.iteritems())
@@ -48,3 +64,18 @@ if sys.maxunicode >= 0x10000:  # not narrow build
 _illegal_ranges = ["%s-%s" % (unichr(low), unichr(high))
                    for (low, high) in _illegal_unichrs]
 illegal_xml_chars_RE = re.compile(u'[%s]' % u''.join(_illegal_ranges))
+
+HEX_ELEM = '[0-9A-Fa-f]'
+UUID_PATTERN = '-'.join([HEX_ELEM + '{8}', HEX_ELEM + '{4}',
+                         HEX_ELEM + '{4}', HEX_ELEM + '{4}',
+                         HEX_ELEM + '{12}'])
+
+def has_role(role, roles):
+    """ Check if the a role is contained in a role list
+
+    Looks if a role is contained to a list independently to the case
+    sensitivity.
+    """
+    if role is None or roles is None:
+        return False
+    return role.lower() in [r.lower() for r in roles]

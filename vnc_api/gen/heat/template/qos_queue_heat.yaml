@@ -1,0 +1,69 @@
+heat_template_version: 2015-04-30
+
+description: >
+  HOT template to create a QosQueue:
+
+parameters:
+  name:
+    type: string
+    description: name for the QosQueue
+    # required: optional
+  fq_name:
+    type: string
+    description: fq_name for the QosQueue
+    # required: optional
+  display_name:
+    type: string
+    description: Display name user configured string(name) that can be updated any time. Used as openstack name.
+    # operations: CRUD
+    # required: optional
+  max_bandwidth:
+    type: number
+    description: Maximum bandwidth for this queue.
+    # operations: CRUD
+    # required: required
+  qos_queue_identifier:
+    type: number
+    description: Unique id for this queue.
+    # operations: CRUD
+    # required: required
+  annotations_key_value_pair_key:
+    type: string
+    description: key for the QosQueue
+    # operations: CRUD
+    # required: optional
+  annotations_key_value_pair_value:
+    type: string
+    description: value for the QosQueue
+    # operations: CRUD
+    # required: optional
+  min_bandwidth:
+    type: number
+    description: Minimum bandwidth for this queue.
+    # operations: CRUD
+    # required: required
+  global_qos_config:
+    type: string
+    description: global_qos_config for the QosQueue
+    # required: optional
+
+resources:
+  template_QosQueue:
+    type: OS::ContrailV2::QosQueue
+    properties:
+      name: { get_param: name }
+      fq_name: { get_param: fq_name }
+      display_name: { get_param: display_name }
+      max_bandwidth: { get_param: max_bandwidth }
+      qos_queue_identifier: { get_param: qos_queue_identifier }
+      annotations:
+        {
+          annotations_key_value_pair:
+            [{
+              annotations_key_value_pair_key: { get_param: annotations_key_value_pair_key },
+              annotations_key_value_pair_value: { get_param: annotations_key_value_pair_value },
+            }],
+        }
+      min_bandwidth: { get_param: min_bandwidth }
+      global_qos_config: { get_param: global_qos_config }
+

@@ -1,1 +1,4 @@
 .DS_Store
+clouds.yaml
+*.ini
+*.pyc
